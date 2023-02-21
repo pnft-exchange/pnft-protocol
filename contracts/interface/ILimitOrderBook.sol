@@ -6,14 +6,16 @@ interface ILimitOrderBook {
     // Do NOT change the order of enum values because it will break backwards compatibility
     enum OrderType {
         LimitOrder,
-        StopLossLimitOrder,
-        TakeProfitLimitOrder
+        StopLossOrder,
+        TakeProfitOrder,
+        StopLimitOrder
     }
 
     // Do NOT change the order of enum values because it will break backwards compatibility
     enum OrderStatus {
         Unfilled,
         Filled,
+        Closed,
         Cancelled
     }
 
@@ -37,9 +39,9 @@ interface ILimitOrderBook {
     // Only available if orderType is StopLossLimitOrder/TakeProfitLimitOrder, otherwise set to 0
     /// @param triggerPrice The trigger price of the limit order
     // Only available if orderType is StopLossLimitOrder/TakeProfitLimitOrder, otherwise set to 0
-    struct LimitOrder {
+    struct LimitOrderParams {
         OrderType orderType;
-        uint256 salt;
+        uint256 salt; //created
         address trader;
         address baseToken;
         bool isBaseToQuote;
@@ -47,11 +49,18 @@ interface ILimitOrderBook {
         uint256 amount;
         uint256 oppositeAmountBound;
         uint256 deadline;
-        uint160 sqrtPriceLimitX96;
-        bytes32 referralCode;
-        bool reduceOnly;
-        uint80 roundIdWhenCreated;
         uint256 triggerPrice;
+        uint256 takeProfitPrice;
+        uint256 stopLossPrice;
+    }
+
+    struct LimitOrder {
+        OrderType orderType;
+        address trader;
+        address baseToken;
+        int256 base;
+        uint256 takeProfitPrice;
+        uint256 stopLossPrice;
     }
 
     /// @notice Emitted when clearingHouse is changed
