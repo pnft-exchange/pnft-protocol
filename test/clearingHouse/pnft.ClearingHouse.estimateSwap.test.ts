@@ -24,12 +24,11 @@ import {
     findLiquidityChangedEvents,
     findPnlRealizedEvents,
     q2bExactOutput,
-    removeAllOrders,
-    removeOrder,
 } from "../helper/clearingHouseHelper"
 import { initMarket } from "../helper/marketHelper"
 import { IGNORABLE_DUST, priceToTick } from "../helper/number"
 import { deposit } from "../helper/token"
+import { forwardBothTimestamps } from "../shared/time"
 import { encodePriceSqrt, filterLogs } from "../shared/utilities"
 import { ClearingHouseFixture, createClearingHouseFixture } from "./fixtures"
 
@@ -81,19 +80,19 @@ describe("ClearingHouse multiplier", () => {
         })
 
         // prepare collateral for trader
-        await collateral.mint(trader1.address, parseUnits("1000", collateralDecimals))
-        await deposit(trader1, vault, 1000, collateral)
+        await collateral.mint(trader1.address, parseUnits("1000000", collateralDecimals))
+        await deposit(trader1, vault, 1000000, collateral)
 
-        await collateral.mint(trader2.address, parseUnits("1000", collateralDecimals))
-        await deposit(trader2, vault, 1000, collateral)
+        await collateral.mint(trader2.address, parseUnits("1000000", collateralDecimals))
+        await deposit(trader2, vault, 1000000, collateral)
 
-        await collateral.mint(liquidator.address, parseUnits("1000", collateralDecimals))
-        await deposit(liquidator, vault, 1000, collateral)
+        await collateral.mint(liquidator.address, parseUnits("1000000", collateralDecimals))
+        await deposit(liquidator, vault, 1000000, collateral)
     }
 
     it("estimate swap check", async () => {
         const initPrice = "77"
-        const estimatePrice = "77"
+        const newPrice = "73"
 
         await setup(initPrice);
 
@@ -118,44 +117,98 @@ describe("ClearingHouse multiplier", () => {
         //     formatEther(res.amountOut),
         // )
 
+        await forwardBothTimestamps(clearingHouse, 86400)
+
+        await clearingHouseConfig.setDurationRepegOverPriceSpread(0)
+
         await clearingHouse.connect(maker).addLiquidity({
             baseToken: baseToken.address,
-            liquidity: parseEther('1183'),
+            liquidity: parseEther('460.55'),
             deadline: ethers.constants.MaxUint256,
         })
-        let res = await exchange.connect(trader1).estimateSwap({
+        // let res = await exchange.connect(trader1).estimateSwap({
+        //     baseToken: baseToken.address,
+        //     isBaseToQuote: false,
+        //     isExactInput: false,
+        //     oppositeAmountBound: 0,
+        //     amount: ethers.constants.MaxUint256.div(1e10),
+        //     sqrtPriceLimitX96: encodePriceSqrt('77', '1'),
+        //     deadline: ethers.constants.MaxUint256,
+        //     referralCode: ethers.constants.HashZero,
+        // })
+
+        let amount = '1.8'
+
+        let res1 = await exchange.connect(trader1).estimateSwap({
             baseToken: baseToken.address,
             isBaseToQuote: true,
             isExactInput: true,
             oppositeAmountBound: 0,
-            amount: parseEther('1.3'),
+            amount: parseEther(amount),
             sqrtPriceLimitX96: 0,
             deadline: ethers.constants.MaxUint256,
             referralCode: ethers.constants.HashZero,
         })
+
         console.log(
             'quote',
-            formatEther(res.amountOut),
+            formatEther(res1.amountOut),
         )
-        await clearingHouse.connect(maker).addLiquidity({
-            baseToken: baseToken.address,
-            liquidity: parseEther('591'),
-            deadline: ethers.constants.MaxUint256,
+
+        mockedNFTPriceFeed.smocked.getPrice.will.return.with(async () => {
+            return parseUnits(newPrice, 18)
         })
-        res = await exchange.connect(trader1).estimateSwap({
+
+        await forwardBothTimestamps(clearingHouse, 86400)
+
+        await clearingHouse.repeg(baseToken.address)
+
+        let res2 = await exchange.connect(trader1).estimateSwap({
             baseToken: baseToken.address,
             isBaseToQuote: true,
             isExactInput: true,
             oppositeAmountBound: 0,
-            amount: parseEther('1.3'),
+            amount: parseEther(amount).mul(initPrice).div(newPrice),
             sqrtPriceLimitX96: 0,
             deadline: ethers.constants.MaxUint256,
             referralCode: ethers.constants.HashZero,
         })
+
         console.log(
             'quote',
-            formatEther(res.amountOut),
+            formatEther(res2.amountOut),
         )
+
+        console.log(
+            'quote delta',
+            formatEther(res2.amountOut.sub(res1.amountOut)),
+        )
+
+        // console.log(
+        //     'quote',
+        //     formatEther(res.amountOut),
+        // )
+        // await clearingHouse.connect(maker).addLiquidity({
+        //     baseToken: baseToken.address,
+        //     liquidity: parseEther('591'),
+        //     deadline: ethers.constants.MaxUint256,
+        // })
+        // res = await exchange.connect(trader1).estimateSwap({
+        //     baseToken: baseToken.address,
+        //     isBaseToQuote: true,
+        //     isExactInput: true,
+        //     oppositeAmountBound: 0,
+        //     amount: parseEther('1.3'),
+        //     sqrtPriceLimitX96: 0,
+        //     deadline: ethers.constants.MaxUint256,
+        //     referralCode: ethers.constants.HashZero,
+        // })
+        // console.log(
+        //     'quote',
+        //     formatEther(res.amountOut),
+        // )
+
+
     })
 
 

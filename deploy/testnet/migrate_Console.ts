@@ -210,7 +210,7 @@ async function deploy() {
     //             isExactInput: true,
     //             oppositeAmountBound: 0,
     //             amount: parseEther('0.0001620424805'),
-    //             sqrtPriceLimitX96: encodePriceSqrt('85', '1'),
+    //             sqrtPriceLimitX96: 0,
     //             deadline: ethers.constants.MaxUint256,
     //             referralCode: ethers.constants.HashZero,
     //         }),
