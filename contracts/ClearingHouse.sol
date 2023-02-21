@@ -247,6 +247,7 @@ contract ClearingHouse is
     {
         // openPosition() is already published, returned types remain the same (without fee)
         (base, quote, ) = _openPositionFor(_msgSender(), params);
+
         return (base, quote);
     }
 

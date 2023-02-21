@@ -251,7 +251,7 @@ async function deploy() {
     //     (await rewardMiner.getStartPnlNumber()).toString()
     // )
 
-    // let minerData = await rewardMiner.getCurrentPeriodInfoTrader('0x80d03173a5371523f94fbba9d1fcbb0777e8dfc9')
+    // let minerData = await rewardMiner.getCurrentPeriodInfoTrader('0xb7bb5674a5ea3ca966cbd9930230f271804c165b')
     // console.log(
     //     'getCurrentPeriodInfoTrader',
     //     formatEther(minerData.total),
