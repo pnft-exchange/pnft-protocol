@@ -11,25 +11,20 @@ import { IUniswapV3SwapCallback } from "@uniswap/v3-core/contracts/interfaces/ca
 import { BlockContext } from "./base/BlockContext.sol";
 import { UniswapV3Broker } from "./lib/UniswapV3Broker.sol";
 import { PerpSafeCast } from "./lib/PerpSafeCast.sol";
-import { SwapMath } from "./lib/SwapMath.sol";
-import { PerpFixedPoint96 } from "./lib/PerpFixedPoint96.sol";
 import { PerpMath } from "./lib/PerpMath.sol";
-import { AccountMarket } from "./lib/AccountMarket.sol";
 import { ClearingHouseCallee } from "./base/ClearingHouseCallee.sol";
 import { UniswapV3CallbackBridge } from "./base/UniswapV3CallbackBridge.sol";
-import { IOrderBook } from "./interface/IOrderBook.sol";
 import { IMarketRegistry } from "./interface/IMarketRegistry.sol";
 import { IAccountBalance } from "./interface/IAccountBalance.sol";
 import { IClearingHouseConfig } from "./interface/IClearingHouseConfig.sol";
+import { IClearingHouse } from "./interface/IClearingHouse.sol";
 import { IIndexPrice } from "./interface/IIndexPrice.sol";
 import { IBaseToken } from "./interface/IBaseToken.sol";
 import { ExchangeStorageV2 } from "./storage/ExchangeStorage.sol";
 import { IExchange } from "./interface/IExchange.sol";
 import { DataTypes } from "./types/DataTypes.sol";
 import { GenericLogic } from "./lib/GenericLogic.sol";
-import { ExchangeLogic } from "./lib/ExchangeLogic.sol";
-import { FundingLogic } from "./lib/FundingLogic.sol";
-import "hardhat/console.sol";
+import { ClearingHouseLogic } from "./lib/ClearingHouseLogic.sol";
 
 // never inherit any new stateful contract. never change the orders of parent stateful contracts
 contract Exchange is
@@ -50,6 +45,7 @@ contract Exchange is
     using PerpSafeCast for uint256;
     using PerpSafeCast for int256;
 
+    int256 internal constant _DEFAULT_FUNDING_PERIOD = 1 days;
     //
     // STRUCT
     //
@@ -60,6 +56,26 @@ contract Exchange is
         bool isExactInput;
         uint256 amount;
         uint160 sqrtPriceLimitX96;
+    }
+
+    struct InternalRealizePnlParams {
+        address trader;
+        address baseToken;
+        int256 takerPositionSize;
+        int256 takerOpenNotional;
+        int256 base;
+        int256 quote;
+    }
+
+    struct InternalFundingGrowthGlobalAndTwapsVars {
+        uint256 longPositionSize;
+        uint256 shortPositionSize;
+        uint256 longMultiplier;
+        uint256 shortMultiplier;
+        int256 deltaTwapX96;
+        int256 deltaTwPremiumX96;
+        int256 deltaShortTwPremiumX96;
+        int256 deltaLongTwPremiumX96;
     }
 
     //
@@ -76,21 +92,14 @@ contract Exchange is
     // EXTERNAL NON-VIEW
     //
 
-    function initialize(
-        address marketRegistryArg,
-        address orderBookArg,
-        address clearingHouseConfigArg
-    ) external initializer {
+    function initialize(address marketRegistryArg, address clearingHouseConfigArg) external initializer {
         __ClearingHouseCallee_init();
         __UniswapV3CallbackBridge_init(marketRegistryArg);
 
-        // E_OBNC: OrderBook is not contract
-        require(orderBookArg.isContract(), "E_OBNC");
         // E_CHNC: CH is not contract
         require(clearingHouseConfigArg.isContract(), "E_CHNC");
 
         // update states
-        _orderBook = orderBookArg;
         _clearingHouseConfig = clearingHouseConfigArg;
     }
 
@@ -134,7 +143,7 @@ contract Exchange is
 
     function internalSwap(SwapParams memory params) external override returns (SwapResponse memory) {
         _requireOnlyClearingHouse();
-        ExchangeLogic.InternalSwapResponse memory response = _swap(params);
+        ClearingHouseLogic.InternalSwapResponse memory response = _swap(params);
         return
             SwapResponse({
                 base: response.base.abs(),
@@ -205,7 +214,7 @@ contract Exchange is
             params.trader,
             params.baseToken
         );
-        ExchangeLogic.InternalSwapResponse memory response = _swap(params);
+        ClearingHouseLogic.InternalSwapResponse memory response = _swap(params);
 
         // if (!params.isClose) {
         // over price limit after swap
@@ -220,8 +229,8 @@ contract Exchange is
         // when reducing/not increasing the position size, it's necessary to realize pnl
         int256 pnlToBeRealized;
         if (isReducingPosition) {
-            pnlToBeRealized = GenericLogic.getPnlToBeRealized(
-                GenericLogic.InternalRealizePnlParams({
+            pnlToBeRealized = _getPnlToBeRealized(
+                InternalRealizePnlParams({
                     trader: params.trader,
                     baseToken: params.baseToken,
                     takerPositionSize: takerPositionSize,
@@ -312,6 +321,30 @@ contract Exchange is
         return (fundingGrowthGlobal);
     }
 
+    function _calcPendingFundingPaymentWithLiquidityCoefficient(
+        int256 baseBalance,
+        int256 twLongPremiumGrowthGlobalX96,
+        int256 twShortPremiumGrowthGlobalX96,
+        DataTypes.Growth memory fundingGrowthGlobal
+    ) internal pure returns (int256) {
+        int256 balanceCoefficientInFundingPayment = 0;
+        if (baseBalance > 0) {
+            balanceCoefficientInFundingPayment = PerpMath.mulDiv(
+                baseBalance,
+                fundingGrowthGlobal.twLongPremiumX96.sub(twLongPremiumGrowthGlobalX96),
+                uint256(PerpMath._IQ96)
+            );
+        }
+        if (baseBalance < 0) {
+            balanceCoefficientInFundingPayment = PerpMath.mulDiv(
+                baseBalance,
+                fundingGrowthGlobal.twShortPremiumX96.sub(twShortPremiumGrowthGlobalX96),
+                uint256(PerpMath._IQ96)
+            );
+        }
+        return balanceCoefficientInFundingPayment.div(_DEFAULT_FUNDING_PERIOD);
+    }
+
     /// @inheritdoc IExchange
     function settleFunding(
         address trader,
@@ -327,7 +360,7 @@ contract Exchange is
         uint256 indexTwap;
         (fundingGrowthGlobal, markTwap, indexTwap) = _getFundingGrowthGlobalAndTwaps(baseToken);
 
-        fundingPayment = FundingLogic.calcPendingFundingPaymentWithLiquidityCoefficient(
+        fundingPayment = _calcPendingFundingPaymentWithLiquidityCoefficient(
             IAccountBalance(_accountBalance).getOriginBase(trader, baseToken),
             IAccountBalance(_accountBalance).getAccountInfo(trader, baseToken).lastLongTwPremiumGrowthGlobalX96,
             IAccountBalance(_accountBalance).getAccountInfo(trader, baseToken).lastShortTwPremiumGrowthGlobalX96,
@@ -366,11 +399,6 @@ contract Exchange is
     //
 
     /// @inheritdoc IExchange
-    function getOrderBook() external view override returns (address) {
-        return _orderBook;
-    }
-
-    /// @inheritdoc IExchange
     function getAccountBalance() external view override returns (address) {
         return _accountBalance;
     }
@@ -399,8 +427,8 @@ contract Exchange is
 
         return
             isReducingPosition
-                ? GenericLogic.getPnlToBeRealized(
-                    GenericLogic.InternalRealizePnlParams({
+                ? _getPnlToBeRealized(
+                    InternalRealizePnlParams({
                         trader: params.trader,
                         baseToken: params.baseToken,
                         takerPositionSize: takerPositionSize,
@@ -448,7 +476,7 @@ contract Exchange is
     function getPendingFundingPayment(address trader, address baseToken) public view override returns (int256) {
         (DataTypes.Growth memory fundingGrowthGlobal, , ) = _getFundingGrowthGlobalAndTwaps(baseToken);
         return
-            FundingLogic.calcPendingFundingPaymentWithLiquidityCoefficient(
+            _calcPendingFundingPaymentWithLiquidityCoefficient(
                 IAccountBalance(_accountBalance).getOriginBase(trader, baseToken),
                 IAccountBalance(_accountBalance).getAccountInfo(trader, baseToken).lastLongTwPremiumGrowthGlobalX96,
                 IAccountBalance(_accountBalance).getAccountInfo(trader, baseToken).lastShortTwPremiumGrowthGlobalX96,
@@ -492,7 +520,7 @@ contract Exchange is
     function _replaySwap(InternalReplaySwapParams memory params) internal view returns (int24 tick) {
         IMarketRegistry.MarketInfo memory marketInfo = IMarketRegistry(_marketRegistry).getMarketInfo(params.baseToken);
         uint24 uniswapFeeRatio = marketInfo.uniswapFeeRatio;
-        (, int256 signedScaledAmountForReplaySwap) = SwapMath.calcScaledAmountForSwaps(
+        (, int256 signedScaledAmountForReplaySwap) = PerpMath.calcScaledAmountForSwaps(
             params.isBaseToQuote,
             params.isExactInput,
             params.amount,
@@ -500,8 +528,9 @@ contract Exchange is
         );
 
         // globalFundingGrowth can be empty if shouldUpdateState is false
-        IOrderBook.ReplaySwapResponse memory response = IOrderBook(_orderBook).replaySwap(
-            IOrderBook.ReplaySwapParams({
+        UniswapV3Broker.ReplaySwapResponse memory response = UniswapV3Broker.replaySwap(
+            IMarketRegistry(_marketRegistry).getPool(params.baseToken),
+            UniswapV3Broker.ReplaySwapParams({
                 baseToken: params.baseToken,
                 isBaseToQuote: params.isBaseToQuote,
                 amount: signedScaledAmountForReplaySwap,
@@ -514,8 +543,8 @@ contract Exchange is
     }
 
     /// @dev customized fee: https://www.notion.so/perp/Customise-fee-tier-on-B2QFee-1b7244e1db63416c8651e8fa04128cdb
-    function _swap(SwapParams memory params) internal returns (ExchangeLogic.InternalSwapResponse memory) {
-        ExchangeLogic.InternalSwapResponse memory res = ExchangeLogic.swap(_clearingHouse, params);
+    function _swap(SwapParams memory params) internal returns (ClearingHouseLogic.InternalSwapResponse memory) {
+        ClearingHouseLogic.InternalSwapResponse memory res = ClearingHouseLogic.swap(_clearingHouse, params);
         if (_firstTradedTimestampMap[params.baseToken] == 0) {
             _firstTradedTimestampMap[params.baseToken] = _blockTimestamp();
         }
@@ -545,13 +574,6 @@ contract Exchange is
         return tick;
     }
 
-    struct InternalFundingGrowthGlobalAndTwapsVars {
-        uint256 longPositionSize;
-        uint256 shortPositionSize;
-        uint256 longMultiplier;
-        uint256 shortMultiplier;
-    }
-
     /// @dev this function calculates the up-to-date globalFundingGrowth and twaps and pass them out
     /// @return fundingGrowthGlobal the up-to-date globalFundingGrowth
     /// @return markTwap only for settleFunding()
@@ -564,8 +586,7 @@ contract Exchange is
             ? _blockTimestamp()
             : IBaseToken(baseToken).getPausedTimestamp();
         return
-            FundingLogic.getFundingGrowthGlobalAndTwaps(
-                _clearingHouse,
+            _getFundingGrowthGlobalAndTwaps(
                 baseToken,
                 _firstTradedTimestampMap[baseToken],
                 _lastSettledTimestampMap[baseToken],
@@ -574,14 +595,217 @@ contract Exchange is
             );
     }
 
+    function _getFundingGrowthGlobalAndTwaps(
+        address baseToken,
+        uint256 firstTrade,
+        uint256 lastSettled,
+        uint256 timestamp,
+        DataTypes.Growth memory lastFundingGrowthGlobal
+    ) internal view returns (DataTypes.Growth memory fundingGrowthGlobal, uint256 markTwap, uint256 indexTwap) {
+        // shorten twapInterval if prior observations are not enough
+        uint32 twapInterval;
+        if (firstTrade != 0) {
+            twapInterval = IClearingHouseConfig(_clearingHouseConfig).getTwapInterval();
+            // overflow inspection:
+            // 2 ^ 32 = 4,294,967,296 > 100 years = 60 * 60 * 24 * 365 * 100 = 3,153,600,000
+            uint32 deltaTimestamp = timestamp.sub(firstTrade).toUint32();
+            twapInterval = twapInterval > deltaTimestamp ? deltaTimestamp : twapInterval;
+        }
+        // uint256 markTwapX96;
+        // if (marketOpen) {
+        //     markTwapX96 = getSqrtMarkTwapX96(baseToken, twapInterval).formatSqrtPriceX96ToPriceX96();
+        //     indexTwap = IIndexPrice(baseToken).getIndexPrice(twapInterval);
+        // } else {
+        //     // if a market is paused/closed, we use the last known index price which is getPausedIndexPrice
+        //     //
+        //     // -----+--- twap interval ---+--- secondsAgo ---+
+        //     //                        pausedTime            now
+
+        //     // timestamp is pausedTime when the market is not open
+        //     uint32 secondsAgo = _blockTimestamp().sub(timestamp).toUint32();
+        //     markTwapX96 = UniswapV3Broker
+        //         .getSqrtMarkTwapX96From(IMarketRegistry(_marketRegistry).getPool(baseToken), secondsAgo, twapInterval)
+        //         .formatSqrtPriceX96ToPriceX96();
+        //     indexTwap = IBaseToken(baseToken).getPausedIndexPrice();
+        // }
+
+        uint256 markTwapX96 = getSqrtMarkTwapX96(baseToken, twapInterval).formatSqrtPriceX96ToPriceX96();
+
+        markTwap = markTwapX96.formatX96ToX10_18();
+        indexTwap = IIndexPrice(baseToken).getIndexPrice(twapInterval);
+
+        if (timestamp == lastSettled || lastSettled == 0) {
+            // if this is the latest updated timestamp, values in _globalFundingGrowthX96Map are up-to-date already
+            fundingGrowthGlobal = lastFundingGrowthGlobal;
+        } else {
+            // deltaTwPremium = (markTwap - indexTwap) * (now - lastSettledTimestamp)
+            // int256 deltaTwPremiumX96 = _getDeltaTwapX96(markTwapX96, indexTwap.formatX10_18ToX96()).mul(
+            //     timestamp.sub(lastSettledTimestamp).toInt256()
+            // );
+            // fundingGrowthGlobal.twPremiumX96 = lastFundingGrowthGlobal.twPremiumX96.add(deltaTwPremiumX96);
+
+            // // overflow inspection:
+            // // assuming premium = 1 billion (1e9), time diff = 1 year (3600 * 24 * 365)
+            // // log(1e9 * 2^96 * (3600 * 24 * 365) * 2^96) / log(2) = 246.8078491997 < 255
+            // // twPremiumDivBySqrtPrice += deltaTwPremium / getSqrtMarkTwap(baseToken)
+            // fundingGrowthGlobal.twPremiumDivBySqrtPriceX96 = lastFundingGrowthGlobal.twPremiumDivBySqrtPriceX96.add(
+            //     PerpMath.mulDiv(deltaTwPremiumX96, PerpMath._IQ96, getSqrtMarkTwapX96(baseToken, 0))
+            // );
+
+            InternalFundingGrowthGlobalAndTwapsVars memory vars;
+
+            (vars.longPositionSize, vars.shortPositionSize) = IAccountBalance(
+                IClearingHouse(_clearingHouse).getAccountBalance()
+            ).getMarketPositionSize(baseToken);
+            if (vars.longPositionSize > 0 && vars.shortPositionSize > 0 && markTwap != indexTwap) {
+                (vars.longMultiplier, vars.shortMultiplier) = IAccountBalance(
+                    IClearingHouse(_clearingHouse).getAccountBalance()
+                ).getMarketMultiplier(baseToken);
+                vars.deltaTwapX96 = _getDeltaTwapX96(markTwapX96, indexTwap.formatX10_18ToX96());
+                vars.deltaTwapX96 = _getDeltaTwapX96AfterOptimal(
+                    baseToken,
+                    vars.deltaTwapX96,
+                    indexTwap.formatX10_18ToX96()
+                );
+                vars.deltaTwPremiumX96 = vars.deltaTwapX96.mul(timestamp.sub(lastSettled).toInt256());
+                if (vars.deltaTwapX96 > 0) {
+                    // LONG pay
+                    fundingGrowthGlobal.twLongPremiumX96 = lastFundingGrowthGlobal.twLongPremiumX96.add(
+                        vars.deltaTwPremiumX96.mulMultiplier(vars.longMultiplier)
+                    );
+                    // SHORT receive
+                    vars.deltaShortTwPremiumX96 = vars.deltaTwPremiumX96.mul(vars.longPositionSize.toInt256()).div(
+                        vars.shortPositionSize.toInt256()
+                    );
+                    fundingGrowthGlobal.twShortPremiumX96 = lastFundingGrowthGlobal.twShortPremiumX96.add(
+                        vars.deltaShortTwPremiumX96.mulMultiplier(vars.shortMultiplier)
+                    );
+                } else if (vars.deltaTwapX96 < 0) {
+                    // LONG receive
+                    vars.deltaLongTwPremiumX96 = vars.deltaTwPremiumX96.mul(vars.shortPositionSize.toInt256()).div(
+                        vars.longPositionSize.toInt256()
+                    );
+                    fundingGrowthGlobal.twLongPremiumX96 = lastFundingGrowthGlobal.twLongPremiumX96.add(
+                        vars.deltaLongTwPremiumX96.mulMultiplier(vars.longMultiplier)
+                    );
+                    // SHORT pay
+                    fundingGrowthGlobal.twShortPremiumX96 = lastFundingGrowthGlobal.twShortPremiumX96.add(
+                        vars.deltaTwPremiumX96.mulMultiplier(vars.shortMultiplier)
+                    );
+                } else {
+                    fundingGrowthGlobal = lastFundingGrowthGlobal;
+                }
+            } else {
+                fundingGrowthGlobal = lastFundingGrowthGlobal;
+            }
+        }
+        return (fundingGrowthGlobal, markTwap, indexTwap);
+    }
+
+    function _getDeltaTwapX96AfterOptimal(
+        address baseToken,
+        int256 deltaTwapX96,
+        uint256 indexTwapX96
+    ) public view returns (int256) {
+        IMarketRegistry.MarketInfo memory marketInfo = IMarketRegistry(
+            IClearingHouse(_clearingHouse).getMarketRegistry()
+        ).getMarketInfo(baseToken);
+
+        // optimalDeltaTwapRatio
+        if ((deltaTwapX96.abs().mul(1e6)) <= (indexTwapX96.mul(marketInfo.optimalDeltaTwapRatio))) {
+            return
+                deltaTwapX96 = PerpMath.mulDiv(
+                    deltaTwapX96,
+                    PerpMath.mulDiv(marketInfo.optimalFundingRatio, marketInfo.optimalFundingRatio, 1e6),
+                    1e6
+                ); // 25% * 25%;
+        }
+        // unhealthyDeltaTwapRatio
+        if ((deltaTwapX96.abs().mul(1e6)) <= (indexTwapX96.mul(marketInfo.unhealthyDeltaTwapRatio))) {
+            return deltaTwapX96 = PerpMath.mulDiv(deltaTwapX96, marketInfo.optimalFundingRatio, 1e6); // 25%;
+        }
+
+        return deltaTwapX96;
+    }
+
+    function _getDeltaTwapX96(uint256 markTwapX96, uint256 indexTwapX96) public view returns (int256 deltaTwapX96) {
+        uint24 maxFundingRate = IClearingHouseConfig(IClearingHouse(_clearingHouse).getClearingHouseConfig())
+            .getMaxFundingRate();
+        uint256 maxDeltaTwapX96 = indexTwapX96.mulRatio(maxFundingRate);
+        uint256 absDeltaTwapX96;
+        if (markTwapX96 > indexTwapX96) {
+            absDeltaTwapX96 = markTwapX96.sub(indexTwapX96);
+            deltaTwapX96 = absDeltaTwapX96 > maxDeltaTwapX96 ? maxDeltaTwapX96.toInt256() : absDeltaTwapX96.toInt256();
+        } else {
+            absDeltaTwapX96 = indexTwapX96.sub(markTwapX96);
+            deltaTwapX96 = absDeltaTwapX96 > maxDeltaTwapX96 ? maxDeltaTwapX96.neg256() : absDeltaTwapX96.neg256();
+        }
+    }
+
+    function _getPnlToBeRealized(InternalRealizePnlParams memory params) internal pure returns (int256) {
+        // closedRatio is based on the position size
+        uint256 closedRatio = FullMath.mulDiv(params.base.abs(), _FULLY_CLOSED_RATIO, params.takerPositionSize.abs());
+
+        int256 pnlToBeRealized;
+        // if closedRatio <= 1, it's reducing or closing a position; else, it's opening a larger reverse position
+        if (closedRatio <= _FULLY_CLOSED_RATIO) {
+            // https://docs.google.com/spreadsheets/d/1QwN_UZOiASv3dPBP7bNVdLR_GTaZGUrHW3-29ttMbLs/edit#gid=148137350
+            // taker:
+            // step 1: long 20 base
+            // openNotionalFraction = 252.53
+            // openNotional = -252.53
+            // step 2: short 10 base (reduce half of the position)
+            // quote = 137.5
+            // closeRatio = 10/20 = 0.5
+            // reducedOpenNotional = openNotional * closedRatio = -252.53 * 0.5 = -126.265
+            // realizedPnl = quote + reducedOpenNotional = 137.5 + -126.265 = 11.235
+            // openNotionalFraction = openNotionalFraction - quote + realizedPnl
+            //                      = 252.53 - 137.5 + 11.235 = 126.265
+            // openNotional = -openNotionalFraction = 126.265
+
+            // overflow inspection:
+            // max closedRatio = 1e18; range of oldOpenNotional = (-2 ^ 255, 2 ^ 255)
+            // only overflow when oldOpenNotional < -2 ^ 255 / 1e18 or oldOpenNotional > 2 ^ 255 / 1e18
+            int256 reducedOpenNotional = params.takerOpenNotional.mulDiv(closedRatio.toInt256(), _FULLY_CLOSED_RATIO);
+            pnlToBeRealized = params.quote.add(reducedOpenNotional);
+        } else {
+            // https://docs.google.com/spreadsheets/d/1QwN_UZOiASv3dPBP7bNVdLR_GTaZGUrHW3-29ttMbLs/edit#gid=668982944
+            // taker:
+            // step 1: long 20 base
+            // openNotionalFraction = 252.53
+            // openNotional = -252.53
+            // step 2: short 30 base (open a larger reverse position)
+            // quote = 337.5
+            // closeRatio = 30/20 = 1.5
+            // closedPositionNotional = quote / closeRatio = 337.5 / 1.5 = 225
+            // remainsPositionNotional = quote - closedPositionNotional = 337.5 - 225 = 112.5
+            // realizedPnl = closedPositionNotional + openNotional = -252.53 + 225 = -27.53
+            // openNotionalFraction = openNotionalFraction - quote + realizedPnl
+            //                      = 252.53 - 337.5 + -27.53 = -112.5
+            // openNotional = -openNotionalFraction = remainsPositionNotional = 112.5
+
+            // overflow inspection:
+            // max & min tick = 887272, -887272; max liquidity = 2 ^ 128
+            // max quote = 2^128 * (sqrt(1.0001^887272) - sqrt(1.0001^-887272)) = 6.276865796e57 < 2^255 / 1e18
+            int256 closedPositionNotional = params.quote.mulDiv(int256(_FULLY_CLOSED_RATIO), closedRatio);
+            pnlToBeRealized = params.takerOpenNotional.add(closedPositionNotional);
+        }
+
+        return pnlToBeRealized;
+    }
+
     /// @dev get a price limit for replaySwap s.t. it can stop when reaching the limit to save gas
     function _getSqrtPriceLimitForReplaySwap(address baseToken, bool isLong) internal view returns (uint160) {
-        return
-            FundingLogic.getSqrtPriceLimitForReplaySwap(
-                isLong,
-                _lastUpdatedTickMap[baseToken],
-                _maxTickCrossedWithinBlockMap[baseToken]
-            );
+        // price limit = max tick + 1 or min tick - 1, depending on which direction
+        int24 tickBoundary = isLong
+            ? _lastUpdatedTickMap[baseToken] + int24(_maxTickCrossedWithinBlockMap[baseToken]) + 1
+            : _lastUpdatedTickMap[baseToken] - int24(_maxTickCrossedWithinBlockMap[baseToken]) - 1;
+
+        // tickBoundary should be in [MIN_TICK, MAX_TICK]
+        tickBoundary = tickBoundary > TickMath.MAX_TICK ? TickMath.MAX_TICK : tickBoundary;
+        tickBoundary = tickBoundary < TickMath.MIN_TICK ? TickMath.MIN_TICK : tickBoundary;
+
+        return TickMath.getSqrtRatioAtTick(tickBoundary);
     }
 
     // @dev use virtual for testing
@@ -655,7 +879,7 @@ contract Exchange is
 
     function estimateSwap(
         DataTypes.OpenPositionParams memory params
-    ) external view override returns (IOrderBook.ReplaySwapResponse memory) {
-        return ExchangeLogic.estimateSwap(_clearingHouse, params);
+    ) external view override returns (UniswapV3Broker.ReplaySwapResponse memory) {
+        return ClearingHouseLogic.estimateSwap(_clearingHouse, params);
     }
 }

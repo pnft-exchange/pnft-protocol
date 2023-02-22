@@ -9,16 +9,15 @@ import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { ClearingHouseCallee } from "./base/ClearingHouseCallee.sol";
 import { PerpSafeCast } from "./lib/PerpSafeCast.sol";
 import { PerpMath } from "./lib/PerpMath.sol";
+import { IVault } from "./interface/IVault.sol";
 import { IExchange } from "./interface/IExchange.sol";
 import { IBaseToken } from "./interface/IBaseToken.sol";
 import { IIndexPrice } from "./interface/IIndexPrice.sol";
-import { IOrderBook } from "./interface/IOrderBook.sol";
 import { IClearingHouseConfig } from "./interface/IClearingHouseConfig.sol";
-import { AccountBalanceStorageV1, Market } from "./storage/AccountBalanceStorage.sol";
+import { AccountBalanceStorageV1 } from "./storage/AccountBalanceStorage.sol";
 import { BlockContext } from "./base/BlockContext.sol";
 import { IAccountBalance } from "./interface/IAccountBalance.sol";
 import { DataTypes } from "./types/DataTypes.sol";
-import "hardhat/console.sol";
 
 // never inherit any new stateful contract. never change the orders of parent stateful contracts
 contract AccountBalance is IAccountBalance, BlockContext, ClearingHouseCallee, AccountBalanceStorageV1 {
@@ -30,7 +29,6 @@ contract AccountBalance is IAccountBalance, BlockContext, ClearingHouseCallee, A
     using PerpMath for uint256;
     using PerpMath for int256;
     using PerpMath for uint160;
-    using Market for Market.Info;
 
     //
     // CONSTANT
@@ -43,17 +41,13 @@ contract AccountBalance is IAccountBalance, BlockContext, ClearingHouseCallee, A
     // EXTERNAL NON-VIEW
     //
 
-    function initialize(address clearingHouseConfigArg, address orderBookArg) external initializer {
+    function initialize(address clearingHouseConfigArg) external initializer {
         // IClearingHouseConfig address is not contract
         require(clearingHouseConfigArg.isContract(), "AB_CHCNC");
-
-        // IOrderBook is not contract
-        require(orderBookArg.isContract(), "AB_OBNC");
 
         __ClearingHouseCallee_init();
 
         _clearingHouseConfig = clearingHouseConfigArg;
-        _orderBook = orderBookArg;
     }
 
     function setVault(address vaultArg) external onlyOwner {
@@ -81,9 +75,6 @@ contract AccountBalance is IAccountBalance, BlockContext, ClearingHouseCallee, A
                 shortRate
             );
         }
-
-        // console.log("longMultiplierX10_18 %d", _marketMap[baseToken].longMultiplierX10_18);
-        // console.log("shortMultiplierX10_18 %d", _marketMap[baseToken].shortMultiplierX10_18);
 
         emit MultiplierChanged(_marketMap[baseToken].longMultiplierX10_18, _marketMap[baseToken].shortMultiplierX10_18);
     }
@@ -204,11 +195,6 @@ contract AccountBalance is IAccountBalance, BlockContext, ClearingHouseCallee, A
     /// @inheritdoc IAccountBalance
     function getClearingHouseConfig() external view override returns (address) {
         return _clearingHouseConfig;
-    }
-
-    /// @inheritdoc IAccountBalance
-    function getOrderBook() external view override returns (address) {
-        return _orderBook;
     }
 
     /// @inheritdoc IAccountBalance
@@ -504,9 +490,6 @@ contract AccountBalance is IAccountBalance, BlockContext, ClearingHouseCallee, A
     ) internal returns (int256, int256) {
         // for multiplier
         int256 base = getModifyBaseForMultiplier(trader, baseToken, baseAfterMultiplier);
-        // console.log("_modifyTakerBalance base");
-        // console.logInt(baseAfterMultiplier);
-        // console.logInt(base);
         //
         DataTypes.AccountMarketInfo storage accountInfo = _accountMarketMap[trader][baseToken];
         int256 oldPos = accountInfo.takerPositionSize;
@@ -548,8 +531,6 @@ contract AccountBalance is IAccountBalance, BlockContext, ClearingHouseCallee, A
                 _marketMap[baseToken].longPositionSize += accountInfo.takerPositionSize.abs();
             }
         }
-        // console.log("total long  %d", _marketMap[baseToken].longPositionSize);
-        // console.log("total short %d", _marketMap[baseToken].shortPositionSize);
 
         // _resetMultiplier(baseToken);
 
@@ -650,7 +631,7 @@ contract AccountBalance is IAccountBalance, BlockContext, ClearingHouseCallee, A
 
     function _getReferencePrice(address baseToken) internal view returns (uint256) {
         return
-            IExchange(IOrderBook(_orderBook).getExchange())
+            IExchange(IVault(_vault).getExchange())
                 .getSqrtMarkTwapX96(baseToken, IClearingHouseConfig(_clearingHouseConfig).getTwapInterval())
                 .formatSqrtPriceX96ToPriceX96()
                 .formatX96ToX10_18();

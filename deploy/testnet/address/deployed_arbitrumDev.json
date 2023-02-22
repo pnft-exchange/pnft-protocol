@@ -99,13 +99,7 @@
     "vaultLogic": {
         "address": ""
     },
-    "fundingLogic": {
-        "address": ""
-    },
-    "liquidityLogic": {
-        "address": ""
-    },
-    "exchangeLogic": {
+    "clearingHouseLogic": {
         "address": ""
     },
     "clearingHouseConfig": {

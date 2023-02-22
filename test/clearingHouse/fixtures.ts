@@ -6,11 +6,9 @@ import {
     BaseToken,
     ClearingHouse,
     ClearingHouseConfig,
-    CollateralManager,
     Exchange,
     InsuranceFund,
     MarketRegistry,
-    OrderBook,
     RewardMiner,
     TestClearingHouse,
     TestERC20,
@@ -31,14 +29,12 @@ import { createQuoteTokenFixture, token0Fixture, tokensFixture, uniswapV3Factory
 
 export interface ClearingHouseFixture {
     clearingHouse: TestClearingHouse | ClearingHouse
-    orderBook: OrderBook
     accountBalance: TestAccountBalance | AccountBalance
     marketRegistry: MarketRegistry
     clearingHouseConfig: ClearingHouseConfig
     exchange: TestExchange | Exchange
     vault: Vault
     insuranceFund: InsuranceFund
-    collateralManager: CollateralManager
     uniV3Factory: UniswapV3Factory
     pool: UniswapV3Pool
     uniFeeTier: number
@@ -90,25 +86,22 @@ export function createClearingHouseFixture(
         const WBTC = (await tokenFactory.deploy()) as TestERC20
         await WBTC.__TestERC20_init("TestWBTC", "WBTC", 8)
 
-        let GenericLogic = await ethers.getContractFactory("GenericLogic");
-        let genericLogic = await GenericLogic.deploy();
-        let VaultLogic = await ethers.getContractFactory("VaultLogic");
-        let vaultLogic = await VaultLogic.deploy();
-        let LiquidityLogic = await ethers.getContractFactory("LiquidityLogic", {
-            libraries: {
-                GenericLogic: genericLogic.address,
-            },
-        });
-        let liquidityLogic = await LiquidityLogic.deploy();
-        let ExchangeLogic = await ethers.getContractFactory("ExchangeLogic", {
-            libraries: {
-                GenericLogic: genericLogic.address,
-            },
-        });
-        let exchangeLogic = await ExchangeLogic.deploy();
+        let UniswapV3Broker = await ethers.getContractFactory("UniswapV3Broker");
+        let uniswapV3Broker = await UniswapV3Broker.deploy();
 
-        let FundingLogic = await ethers.getContractFactory("FundingLogic");
-        let fundingLogic = await FundingLogic.deploy();
+        let GenericLogic = await ethers.getContractFactory("GenericLogic", {
+            libraries: {
+                UniswapV3Broker: uniswapV3Broker.address,
+            },
+        });
+        let genericLogic = await GenericLogic.deploy();
+        let ClearingHouseLogic = await ethers.getContractFactory("ClearingHouseLogic", {
+            libraries: {
+                UniswapV3Broker: uniswapV3Broker.address,
+                GenericLogic: genericLogic.address,
+            },
+        });
+        let clearingHouseLogic = await ClearingHouseLogic.deploy();
 
         const wethDecimals = await WETH.decimals()
 
@@ -143,13 +136,13 @@ export function createClearingHouseFixture(
         await uniV3Factory.createPool(baseToken.address, quoteToken.address, uniFeeTier)
         const poolFactory = await ethers.getContractFactory("UniswapV3Pool")
 
-        const marketRegistryFactory = await ethers.getContractFactory("MarketRegistry")
+        const marketRegistryFactory = await ethers.getContractFactory("MarketRegistry", {
+            libraries: {
+                UniswapV3Broker: uniswapV3Broker.address,
+            },
+        })
         const marketRegistry = (await marketRegistryFactory.deploy()) as MarketRegistry
         await marketRegistry.initialize(uniV3Factory.address, quoteToken.address)
-
-        const orderBookFactory = await ethers.getContractFactory("OrderBook")
-        const orderBook = (await orderBookFactory.deploy()) as OrderBook
-        await orderBook.initialize(marketRegistry.address)
 
         let accountBalance
         let exchange
@@ -159,9 +152,9 @@ export function createClearingHouseFixture(
 
             const exchangeFactory = await ethers.getContractFactory("TestExchange", {
                 libraries: {
+                    UniswapV3Broker: uniswapV3Broker.address,
                     GenericLogic: genericLogic.address,
-                    ExchangeLogic: exchangeLogic.address,
-                    FundingLogic: fundingLogic.address,
+                    ClearingHouseLogic: clearingHouseLogic.address,
                 },
             })
             exchange = (await exchangeFactory.deploy()) as TestExchange
@@ -171,9 +164,9 @@ export function createClearingHouseFixture(
 
             const exchangeFactory = await ethers.getContractFactory("Exchange", {
                 libraries: {
+                    UniswapV3Broker: uniswapV3Broker.address,
                     GenericLogic: genericLogic.address,
-                    ExchangeLogic: exchangeLogic.address,
-                    FundingLogic: fundingLogic.address,
+                    ClearingHouseLogic: clearingHouseLogic.address,
                 },
             })
             exchange = (await exchangeFactory.deploy()) as Exchange
@@ -184,21 +177,15 @@ export function createClearingHouseFixture(
         await insuranceFund.initialize(WETH.address)
 
         // deploy exchange
-        await exchange.initialize(marketRegistry.address, orderBook.address, clearingHouseConfig.address)
+        await exchange.initialize(marketRegistry.address, clearingHouseConfig.address)
         await exchange.setAccountBalance(accountBalance.address)
 
-        await orderBook.setExchange(exchange.address)
-
-        await accountBalance.initialize(clearingHouseConfig.address, orderBook.address)
+        await accountBalance.initialize(clearingHouseConfig.address)
 
         const [admin, maker, taker, alice, a1, a2, a3, fundingFund, platformFund] = waffle.provider.getWallets()
 
         // deploy vault
-        const vaultFactory = await ethers.getContractFactory("TestVault", {
-            libraries: {
-                VaultLogic: vaultLogic.address,
-            },
-        })
+        const vaultFactory = await ethers.getContractFactory("TestVault")
         const vault = (await vaultFactory.deploy()) as Vault
         await vault.initialize(
             insuranceFund.address,
@@ -208,27 +195,6 @@ export function createClearingHouseFixture(
             maker.address,
         )
 
-        const collateralManagerFactory = await ethers.getContractFactory("CollateralManager")
-        const collateralManager = (await collateralManagerFactory.deploy()) as CollateralManager
-        await collateralManager.initialize(
-            clearingHouseConfig.address,
-            vault.address,
-            5, // maxCollateralTokensPerAccount
-            "750000", // debtNonSettlementTokenValueRatio
-            "500000", // liquidationRatio
-            "2000", // mmRatioBuffer
-            "30000", // clInsuranceFundFeeRatio
-            parseUnits("10000", wethDecimals), // debtThreshold
-            parseUnits("500", wethDecimals), // collateralValueDust
-        )
-        await collateralManager.addCollateral(WBTC.address, {
-            priceFeed: mockedWbtcPriceFeed.address,
-            collateralRatio: (0.7e6).toString(),
-            discountRatio: (0.1e6).toString(),
-            depositCap: parseUnits("1000", await WBTC.decimals()),
-        })
-
-        await vault.setCollateralManager(collateralManager.address)
         await insuranceFund.setVault(vault.address)
         await accountBalance.setVault(vault.address)
 
@@ -256,9 +222,9 @@ export function createClearingHouseFixture(
         if (canMockTime) {
             const clearingHouseFactory = await ethers.getContractFactory("TestClearingHouse", {
                 libraries: {
+                    UniswapV3Broker: uniswapV3Broker.address,
                     GenericLogic: genericLogic.address,
-                    LiquidityLogic: liquidityLogic.address,
-                    ExchangeLogic: exchangeLogic.address,
+                    ClearingHouseLogic: clearingHouseLogic.address,
                 },
             })
             const testClearingHouse = (await clearingHouseFactory.deploy()) as TestClearingHouse
@@ -281,9 +247,9 @@ export function createClearingHouseFixture(
         } else {
             const clearingHouseFactory = await ethers.getContractFactory("ClearingHouse", {
                 libraries: {
+                    UniswapV3Broker: uniswapV3Broker.address,
                     GenericLogic: genericLogic.address,
-                    LiquidityLogic: liquidityLogic.address,
-                    ExchangeLogic: exchangeLogic.address,
+                    ClearingHouseLogic: clearingHouseLogic.address,
                 },
             })
             clearingHouse = (await clearingHouseFactory.deploy()) as ClearingHouse
@@ -313,7 +279,6 @@ export function createClearingHouseFixture(
         await baseToken.addWhitelist(clearingHouse.address)
         await baseToken2.addWhitelist(clearingHouse.address)
         await marketRegistry.setClearingHouse(clearingHouse.address)
-        await orderBook.setClearingHouse(clearingHouse.address)
         await exchange.setClearingHouse(clearingHouse.address)
         await accountBalance.setClearingHouse(clearingHouse.address)
         await vault.setClearingHouse(clearingHouse.address)
@@ -324,14 +289,12 @@ export function createClearingHouseFixture(
 
         return {
             clearingHouse,
-            orderBook,
             accountBalance,
             marketRegistry,
             clearingHouseConfig,
             exchange,
             vault,
             insuranceFund,
-            collateralManager,
             uniV3Factory,
             pool,
             uniFeeTier,
@@ -417,18 +380,12 @@ export async function mockedBaseTokenTo(longerThan: boolean, targetAddr: string)
 export async function mockedClearingHouseFixture(): Promise<MockedClearingHouseFixture> {
     let GenericLogic = await ethers.getContractFactory("GenericLogic");
     let genericLogic = await GenericLogic.deploy();
-    let LiquidityLogic = await ethers.getContractFactory("LiquidityLogic", {
+    let ClearingHouseLogic = await ethers.getContractFactory("ClearingHouseLogic", {
         libraries: {
             GenericLogic: genericLogic.address,
         },
     });
-    let liquidityLogic = await LiquidityLogic.deploy();
-    let ExchangeLogic = await ethers.getContractFactory("ExchangeLogic", {
-        libraries: {
-            GenericLogic: genericLogic.address,
-        },
-    });
-    let exchangeLogic = await ExchangeLogic.deploy();
+    let clearingHouseLogic = await ClearingHouseLogic.deploy();
 
     const token1 = await createQuoteTokenFixture("RandomVirtualToken", "RVT")()
 
@@ -464,13 +421,10 @@ export async function mockedClearingHouseFixture(): Promise<MockedClearingHouseF
     await marketRegistry.initialize(mockedUniV3Factory.address, mockedQuoteToken.address)
     const mockedMarketRegistry = await smockit(marketRegistry)
     const orderBookFactory = await ethers.getContractFactory("OrderBook")
-    const orderBook = (await orderBookFactory.deploy()) as OrderBook
-    await orderBook.initialize(marketRegistry.address)
-    const mockedOrderBook = await smockit(orderBook)
 
     const exchangeFactory = await ethers.getContractFactory("Exchange")
     const exchange = (await exchangeFactory.deploy()) as Exchange
-    await exchange.initialize(mockedMarketRegistry.address, mockedOrderBook.address, clearingHouseConfig.address)
+    await exchange.initialize(mockedMarketRegistry.address, clearingHouseConfig.address)
     const mockedExchange = await smockit(exchange)
 
     const accountBalanceFactory = await ethers.getContractFactory("AccountBalance")
@@ -480,15 +434,12 @@ export async function mockedClearingHouseFixture(): Promise<MockedClearingHouseF
     // deployer ensure base token is always smaller than quote in order to achieve base=token0 and quote=token1
     const mockedBaseToken = await mockedBaseTokenTo(ADDR_LESS_THAN, mockedQuoteToken.address)
 
-    mockedExchange.smocked.getOrderBook.will.return.with(mockedOrderBook.address)
-
     const [admin, maker, taker, alice, a1, a2, a3, fundingFund, platformFund] = waffle.provider.getWallets()
 
     // deploy clearingHouse
     const clearingHouseFactory = await ethers.getContractFactory("ClearingHouse", {
         libraries: {
-            LiquidityLogic: liquidityLogic.address,
-            ExchangeLogic: exchangeLogic.address,
+            ClearingHouseLogic: clearingHouseLogic.address,
         },
     })
     const clearingHouse = (await clearingHouseFactory.deploy()) as ClearingHouse

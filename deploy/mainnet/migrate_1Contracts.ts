@@ -7,12 +7,10 @@ import migrateBaseTokenAll from "./5_migrate_BaseToken_All";
 import migrateLibrary from "./6_migrate_Library";
 import migrateClearingHouseConfig from "./7_migrate_ClearingHouseConfig";
 import migrateMarketRegistry from "./8_migrate_MarketRegistry";
-import migrateOrderBook from "./9_migrate_OrderBook";
 import migrateAccountBalance from "./10_migrate_AccountBalance";
 import migrateExchange from "./11_migrate_Exchange";
 import migrateInsuranceFund from "./12_migrate_InsuranceFund";
 import migrateVault from "./13_migrate_Vault";
-import migrateCollateralManager from "./14_migrate_CollateralManager";
 import migrateClearingHouse from "./15_migrate_ClearingHouse";
 import migratePNFTToken from "./20_migrate_PNFTToken";
 import migrateRewardMiner from "./21_migrate_RewardMiner";
@@ -71,13 +69,6 @@ async function deploy() {
         console.log('migrateMarketRegistry -- END --')
     }
 
-    // import migrateOrderBook from "./9_migrate_OrderBook";
-    {
-        console.log('migrateOrderBook -- START --')
-        await migrateOrderBook();
-        console.log('migrateOrderBook -- END --')
-    }
-
     // import migrateAccountBalance from "./10_migrate_AccountBalance";
     {
         console.log('migrateAccountBalance -- START --')
@@ -104,13 +95,6 @@ async function deploy() {
         console.log('migrateVault -- START --')
         await migrateVault();
         console.log('migrateVault -- END --')
-    }
-
-    // import migrateCollateralManager from "./14_migrate_CollateralManager";
-    {
-        console.log('migrateCollateralManager -- START --')
-        await migrateCollateralManager();
-        console.log('migrateCollateralManager -- END --')
     }
 
     // import migrateClearingHouse from "./15_migrate_ClearingHouse";

@@ -6,7 +6,6 @@ import { IInsuranceFund } from "../interface/IInsuranceFund.sol";
 import { IBaseToken } from "../interface/IBaseToken.sol";
 import { IClearingHouse } from "../interface/IClearingHouse.sol";
 import { IClearingHouseConfig } from "../interface/IClearingHouseConfig.sol";
-import { IOrderBook } from "../interface/IOrderBook.sol";
 import { IExchange } from "../interface/IExchange.sol";
 import { IVault } from "../interface/IVault.sol";
 import { IMarketRegistry } from "../interface/IMarketRegistry.sol";
@@ -15,16 +14,14 @@ import { IIndexPrice } from "../interface/IIndexPrice.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { PerpSafeCast } from "./PerpSafeCast.sol";
 import { PerpMath } from "./PerpMath.sol";
-import { SettlementTokenMath } from "./SettlementTokenMath.sol";
 import { SafeMathUpgradeable } from "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
 import { SignedSafeMathUpgradeable } from "@openzeppelin/contracts-upgradeable/math/SignedSafeMathUpgradeable.sol";
 import { DataTypes } from "../types/DataTypes.sol";
 import { GenericLogic } from "../lib/GenericLogic.sol";
 import { UniswapV3Broker } from "../lib/UniswapV3Broker.sol";
-import { SwapMath } from "../lib/SwapMath.sol";
 import "hardhat/console.sol";
 
-library ExchangeLogic {
+library ClearingHouseLogic {
     using SafeMathUpgradeable for uint256;
     using SignedSafeMathUpgradeable for int256;
     using PerpSafeCast for uint256;
@@ -34,7 +31,6 @@ library ExchangeLogic {
     using PerpMath for uint160;
     using PerpMath for uint128;
     using PerpMath for int256;
-    using SettlementTokenMath for int256;
 
     uint256 internal constant _BAD_AMOUNT = 1e10; // 15 sec
 
@@ -57,6 +53,34 @@ library ExchangeLogic {
         int256 exchangedPositionNotional;
         uint256 fee;
         int24 tick;
+    }
+
+    struct InternalLiquidateParams {
+        address chAddress;
+        address marketRegistry;
+        address liquidator;
+        address trader;
+        address baseToken;
+        int256 positionSizeToBeLiquidated;
+        bool isForced;
+    }
+
+    struct InternalLiquidateVars {
+        int256 positionSize;
+        int256 openNotional;
+        uint256 liquidationPenalty;
+        int256 accountValue;
+        int256 liquidatedPositionSize;
+        int256 liquidatedPositionNotional;
+        uint256 liquidationFeeToLiquidator;
+        uint256 liquidationFeeToIF;
+        int256 liquidatorExchangedPositionNotional;
+        int256 accountValueAfterLiquidationX10_18;
+        int256 insuranceFundCapacityX10_18;
+        int256 liquidatorExchangedPositionSize;
+        address insuranceFund;
+        int256 traderRealizedPnl;
+        int256 liquidatorRealizedPnl;
     }
 
     //
@@ -357,34 +381,6 @@ library ExchangeLogic {
         );
     }
 
-    struct InternalLiquidateParams {
-        address chAddress;
-        address marketRegistry;
-        address liquidator;
-        address trader;
-        address baseToken;
-        int256 positionSizeToBeLiquidated;
-        bool isForced;
-    }
-
-    struct InternalLiquidateVars {
-        int256 positionSize;
-        int256 openNotional;
-        uint256 liquidationPenalty;
-        int256 accountValue;
-        int256 liquidatedPositionSize;
-        int256 liquidatedPositionNotional;
-        uint256 liquidationFeeToLiquidator;
-        uint256 liquidationFeeToIF;
-        int256 liquidatorExchangedPositionNotional;
-        int256 accountValueAfterLiquidationX10_18;
-        int256 insuranceFundCapacityX10_18;
-        int256 liquidatorExchangedPositionSize;
-        address insuranceFund;
-        int256 traderRealizedPnl;
-        int256 liquidatorRealizedPnl;
-    }
-
     function liquidate(
         InternalLiquidateParams memory params
     ) public returns (uint256 base, uint256 quote, uint256 fee) {
@@ -534,7 +530,7 @@ library ExchangeLogic {
         IMarketRegistry.MarketInfo memory marketInfo = IMarketRegistry(IClearingHouse(chAddress).getMarketRegistry())
             .getMarketInfo(params.baseToken);
 
-        (uint256 scaledAmountForUniswapV3PoolSwap, int256 signedScaledAmountForReplaySwap) = SwapMath
+        (uint256 scaledAmountForUniswapV3PoolSwap, int256 signedScaledAmountForReplaySwap) = PerpMath
             .calcScaledAmountForSwaps(
                 params.isBaseToQuote,
                 params.isExactInput,
@@ -543,17 +539,18 @@ library ExchangeLogic {
             );
 
         // simulate the swap to calculate the fees charged in exchange
-        IOrderBook.ReplaySwapResponse memory replayResponse = IOrderBook(IClearingHouse(chAddress).getOrderBook())
-            .replaySwap(
-                IOrderBook.ReplaySwapParams({
-                    baseToken: params.baseToken,
-                    isBaseToQuote: params.isBaseToQuote,
-                    shouldUpdateState: true,
-                    amount: signedScaledAmountForReplaySwap,
-                    sqrtPriceLimitX96: params.sqrtPriceLimitX96,
-                    uniswapFeeRatio: marketInfo.uniswapFeeRatio
-                })
-            );
+        UniswapV3Broker.ReplaySwapResponse memory replayResponse = UniswapV3Broker.replaySwap(
+            IMarketRegistry(IClearingHouse(chAddress).getMarketRegistry()).getPool(params.baseToken),
+            UniswapV3Broker.ReplaySwapParams({
+                baseToken: params.baseToken,
+                isBaseToQuote: params.isBaseToQuote,
+                shouldUpdateState: true,
+                amount: signedScaledAmountForReplaySwap,
+                sqrtPriceLimitX96: params.sqrtPriceLimitX96,
+                uniswapFeeRatio: marketInfo.uniswapFeeRatio
+            })
+        );
+
         UniswapV3Broker.SwapResponse memory response = UniswapV3Broker.swap(
             UniswapV3Broker.SwapParams(
                 marketInfo.pool,
@@ -581,7 +578,7 @@ library ExchangeLogic {
         int256 exchangedPositionNotional;
         if (params.isBaseToQuote) {
             // short: exchangedPositionSize <= 0 && exchangedPositionNotional >= 0
-            exchangedPositionSize = SwapMath
+            exchangedPositionSize = PerpMath
                 .calcAmountScaledByFeeRatio(response.base, marketInfo.uniswapFeeRatio, false)
                 .neg256();
             // due to base to quote fee, exchangedPositionNotional contains the fee
@@ -606,7 +603,7 @@ library ExchangeLogic {
                 // quote = exchangedPositionNotional - replayResponse.fee = exact input
                 exchangedPositionNotional = params.amount.sub(replayResponse.fee).toInt256().neg256();
             } else {
-                exchangedPositionNotional = SwapMath
+                exchangedPositionNotional = PerpMath
                     .calcAmountScaledByFeeRatio(response.quote, marketInfo.uniswapFeeRatio, false)
                     .neg256();
             }
@@ -631,18 +628,19 @@ library ExchangeLogic {
     function estimateSwap(
         address chAddress,
         DataTypes.OpenPositionParams memory params
-    ) public view returns (IOrderBook.ReplaySwapResponse memory response) {
+    ) public view returns (UniswapV3Broker.ReplaySwapResponse memory response) {
         IMarketRegistry.MarketInfo memory marketInfo = IMarketRegistry(IClearingHouse(chAddress).getMarketRegistry())
             .getMarketInfo(params.baseToken);
         uint24 uniswapFeeRatio = marketInfo.uniswapFeeRatio;
-        (, int256 signedScaledAmountForReplaySwap) = SwapMath.calcScaledAmountForSwaps(
+        (, int256 signedScaledAmountForReplaySwap) = PerpMath.calcScaledAmountForSwaps(
             params.isBaseToQuote,
             params.isExactInput,
             params.amount,
             uniswapFeeRatio
         );
-        response = IOrderBook(IClearingHouse(chAddress).getOrderBook()).estimateSwap(
-            IOrderBook.ReplaySwapParams({
+        response = UniswapV3Broker.estimateSwap(
+            IMarketRegistry(IClearingHouse(chAddress).getMarketRegistry()).getPool(params.baseToken),
+            UniswapV3Broker.ReplaySwapParams({
                 baseToken: params.baseToken,
                 isBaseToQuote: params.isBaseToQuote,
                 amount: signedScaledAmountForReplaySwap,

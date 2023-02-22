@@ -5,7 +5,7 @@ import bn from "bignumber.js"
 import hre, { ethers } from "hardhat";
 
 import { encodePriceSqrt, formatSqrtPriceX96ToPrice } from "../../test/shared/utilities";
-import { AccountBalance, BaseToken, ClearingHouse, ClearingHouseConfig, CollateralManager, Exchange, GenericLogic, InsuranceFund, MarketRegistry, MockPNFTToken, NftPriceFeed, OrderBook, QuoteToken, RewardMiner, TestERC20, TestFaucet, UniswapV3Pool, Vault } from "../../typechain";
+import { AccountBalance, BaseToken, ClearingHouse, ClearingHouseConfig, Exchange, GenericLogic, InsuranceFund, MarketRegistry, MockPNFTToken, NftPriceFeed, QuoteToken, RewardMiner, TestERC20, TestFaucet, UniswapV3Pool, Vault } from "../../typechain";
 import { getMaxTickRange, priceToTick } from "../../test/helper/number";
 import helpers from "../helpers";
 import { formatEther, parseEther } from "ethers/lib/utils";
@@ -20,12 +20,10 @@ import migrateLibrary from "./6_migrate_Library";
 import migrateUniswapV3 from "./6_migrate_UniswapV3";
 import migrateClearingHouseConfig from "./7_migrate_ClearingHouseConfig";
 import migrateMarketRegistry from "./8_migrate_MarketRegistry";
-import migrateOrderBook from "./9_migrate_OrderBook";
 import migrateAccountBalance from "./10_migrate_AccountBalance";
 import migrateExchange from "./11_migrate_Exchange";
 import migrateInsuranceFund from "./12_migrate_InsuranceFund";
 import migrateVault from "./13_migrate_Vault";
-import migrateCollateralManager from "./14_migrate_CollateralManager";
 import migrateClearingHouse from "./15_migrate_ClearingHouse";
 import migratePNFTToken from "./20_migrate_PNFTToken";
 import migrateRewardMiner from "./21_migrate_RewardMiner";
@@ -80,12 +78,12 @@ async function deploy() {
     //     console.log('migrateBaseTokenAll -- END --')
     // }
 
-    // // import migrateLibrary from "./6_migrate_Library";
-    // {
-    //     console.log('migrateLibrary -- START --')
-    //     await migrateLibrary();
-    //     console.log('migrateLibrary -- END --')
-    // }
+    // import migrateLibrary from "./6_migrate_Library";
+    {
+        console.log('migrateLibrary -- START --')
+        await migrateLibrary();
+        console.log('migrateLibrary -- END --')
+    }
 
     // // import migrateUniswapV3 from "./6_migrate_UniswapV3";
     // {
@@ -94,68 +92,54 @@ async function deploy() {
     //     console.log('migrateUniswapV3 -- END --')
     // }
 
-    // // import migrateClearingHouseConfig from "./7_migrate_ClearingHouseConfig";
-    // {
-    //     console.log('migrateClearingHouseConfig -- START --')
-    //     await migrateClearingHouseConfig();
-    //     console.log('migrateClearingHouseConfig -- END --')
-    // }
+    // import migrateClearingHouseConfig from "./7_migrate_ClearingHouseConfig";
+    {
+        console.log('migrateClearingHouseConfig -- START --')
+        await migrateClearingHouseConfig();
+        console.log('migrateClearingHouseConfig -- END --')
+    }
 
-    // // import migrateMarketRegistry from "./8_migrate_MarketRegistry";
-    // {
-    //     console.log('migrateMarketRegistry -- START --')
-    //     await migrateMarketRegistry();
-    //     console.log('migrateMarketRegistry -- END --')
-    // }
+    // import migrateMarketRegistry from "./8_migrate_MarketRegistry";
+    {
+        console.log('migrateMarketRegistry -- START --')
+        await migrateMarketRegistry();
+        console.log('migrateMarketRegistry -- END --')
+    }
 
-    // // import migrateOrderBook from "./9_migrate_OrderBook";
-    // {
-    //     console.log('migrateOrderBook -- START --')
-    //     await migrateOrderBook();
-    //     console.log('migrateOrderBook -- END --')
-    // }
+    // import migrateAccountBalance from "./10_migrate_AccountBalance";
+    {
+        console.log('migrateAccountBalance -- START --')
+        await migrateAccountBalance();
+        console.log('migrateAccountBalance -- END --')
+    }
 
-    // // import migrateAccountBalance from "./10_migrate_AccountBalance";
-    // {
-    //     console.log('migrateAccountBalance -- START --')
-    //     await migrateAccountBalance();
-    //     console.log('migrateAccountBalance -- END --')
-    // }
+    // import migrateExchange from "./11_migrate_Exchange";
+    {
+        console.log('migrateExchange -- START --')
+        await migrateExchange();
+        console.log('migrateExchange -- END --')
+    }
 
-    // // import migrateExchange from "./11_migrate_Exchange";
-    // {
-    //     console.log('migrateExchange -- START --')
-    //     await migrateExchange();
-    //     console.log('migrateExchange -- END --')
-    // }
+    // import migrateInsuranceFund from "./12_migrate_InsuranceFund";
+    {
+        console.log('migrateInsuranceFund -- START --')
+        await migrateInsuranceFund();
+        console.log('migrateInsuranceFund -- END --')
+    }
 
-    // // import migrateInsuranceFund from "./12_migrate_InsuranceFund";
-    // {
-    //     console.log('migrateInsuranceFund -- START --')
-    //     await migrateInsuranceFund();
-    //     console.log('migrateInsuranceFund -- END --')
-    // }
+    // import migrateVault from "./13_migrate_Vault";
+    {
+        console.log('migrateVault -- START --')
+        await migrateVault();
+        console.log('migrateVault -- END --')
+    }
 
-    // // import migrateVault from "./13_migrate_Vault";
-    // {
-    //     console.log('migrateVault -- START --')
-    //     await migrateVault();
-    //     console.log('migrateVault -- END --')
-    // }
-
-    // // import migrateCollateralManager from "./14_migrate_CollateralManager";
-    // {
-    //     console.log('migrateCollateralManager -- START --')
-    //     await migrateCollateralManager();
-    //     console.log('migrateCollateralManager -- END --')
-    // }
-
-    // // import migrateClearingHouse from "./15_migrate_ClearingHouse";
-    // {
-    //     console.log('migrateClearingHouse -- START --')
-    //     await migrateClearingHouse();
-    //     console.log('migrateClearingHouse -- END --')
-    // }
+    // import migrateClearingHouse from "./15_migrate_ClearingHouse";
+    {
+        console.log('migrateClearingHouse -- START --')
+        await migrateClearingHouse();
+        console.log('migrateClearingHouse -- END --')
+    }
 
     // // import migratePNFTToken from "./20_migrate_PNFTToken";
     // {
@@ -171,7 +155,7 @@ async function deploy() {
     //     console.log('migrateRewardMiner -- END --')
     // }
 
-    // return
+    return
 
 
     const network = hre.network.name;
@@ -188,12 +172,10 @@ async function deploy() {
     var genericLogic = (await hre.ethers.getContractAt('GenericLogic', deployData.genericLogic.address)) as GenericLogic;
     var clearingHouseConfig = (await hre.ethers.getContractAt('ClearingHouseConfig', deployData.clearingHouseConfig.address)) as ClearingHouseConfig;
     var marketRegistry = (await hre.ethers.getContractAt('MarketRegistry', deployData.marketRegistry.address)) as MarketRegistry;
-    var orderBook = (await hre.ethers.getContractAt('OrderBook', deployData.orderBook.address)) as OrderBook;
     var accountBalance = (await hre.ethers.getContractAt('AccountBalance', deployData.accountBalance.address)) as AccountBalance;
     var exchange = (await hre.ethers.getContractAt('Exchange', deployData.exchange.address) as Exchange);
     var insuranceFund = (await hre.ethers.getContractAt('InsuranceFund', deployData.insuranceFund.address)) as InsuranceFund;
     var vault = (await hre.ethers.getContractAt('Vault', deployData.vault.address)) as Vault;
-    var collateralManager = (await hre.ethers.getContractAt('CollateralManager', deployData.collateralManager.address)) as CollateralManager;
     var clearingHouse = (await hre.ethers.getContractAt('ClearingHouse', deployData.clearingHouse.address)) as ClearingHouse;
     var rewardMiner = (await hre.ethers.getContractAt('RewardMiner', deployData.rewardMiner.address)) as RewardMiner;
     var pNFTToken = (await hre.ethers.getContractAt('MockPNFTToken', deployData.pNFTToken.address)) as MockPNFTToken;

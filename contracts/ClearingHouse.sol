@@ -9,15 +9,11 @@ import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/
 import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import { IUniswapV3MintCallback } from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import { IUniswapV3SwapCallback } from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
-import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
-import { PerpSafeCast } from "./lib/PerpSafeCast.sol";
 import { PerpMath } from "./lib/PerpMath.sol";
-import { SettlementTokenMath } from "./lib/SettlementTokenMath.sol";
 import { OwnerPausable } from "./base/OwnerPausable.sol";
 import { IERC20Metadata } from "./interface/IERC20Metadata.sol";
 import { IVault } from "./interface/IVault.sol";
 import { IExchange } from "./interface/IExchange.sol";
-import { IOrderBook } from "./interface/IOrderBook.sol";
 import { IIndexPrice } from "./interface/IIndexPrice.sol";
 import { IClearingHouseConfig } from "./interface/IClearingHouseConfig.sol";
 import { IAccountBalance } from "./interface/IAccountBalance.sol";
@@ -29,14 +25,11 @@ import { BaseRelayRecipient } from "./gsn/BaseRelayRecipient.sol";
 import { ClearingHouseStorage } from "./storage/ClearingHouseStorage.sol";
 import { BlockContext } from "./base/BlockContext.sol";
 import { IClearingHouse } from "./interface/IClearingHouse.sol";
-import { AccountMarket } from "./lib/AccountMarket.sol";
-import { LiquidityLogic } from "./lib/LiquidityLogic.sol";
-import { ExchangeLogic } from "./lib/ExchangeLogic.sol";
+import { ClearingHouseLogic } from "./lib/ClearingHouseLogic.sol";
 import { GenericLogic } from "./lib/GenericLogic.sol";
 import { IMarketRegistry } from "./interface/IMarketRegistry.sol";
 import { DataTypes } from "./types/DataTypes.sol";
 import { UniswapV3Broker } from "./lib/UniswapV3Broker.sol";
-import "hardhat/console.sol";
 
 // never inherit any new stateful contract. never change the orders of parent stateful contracts
 contract ClearingHouse is
@@ -52,36 +45,27 @@ contract ClearingHouse is
     using AddressUpgradeable for address;
     using SafeMathUpgradeable for uint256;
     using SignedSafeMathUpgradeable for int256;
-    using PerpSafeCast for uint256;
-    using PerpSafeCast for uint128;
-    using PerpSafeCast for int256;
     using PerpMath for uint256;
     using PerpMath for uint160;
     using PerpMath for uint128;
     using PerpMath for int256;
-    using SettlementTokenMath for int256;
 
     //
     // STRUCT
     //
 
-    /// @param sqrtPriceLimitX96 tx will fill until it reaches this price but WON'T REVERT
-    struct InternalOpenPositionParams {
-        address trader;
-        address baseToken;
-        bool isBaseToQuote;
-        bool isExactInput;
-        bool isClose;
-        uint256 amount;
-        uint160 sqrtPriceLimitX96;
-    }
-
-    struct InternalCheckSlippageParams {
-        bool isBaseToQuote;
-        bool isExactInput;
-        uint256 base;
-        uint256 quote;
-        uint256 oppositeAmountBound;
+    struct InternalRepegParams {
+        uint160 oldSqrtMarkPrice;
+        uint256 oldMarkPrice;
+        uint160 newSqrtMarkPrice;
+        uint256 newMarkPrice;
+        uint256 spotPrice;
+        uint160 sqrtSpotPrice;
+        int256 oldDeltaBase;
+        uint256 newDeltaBase;
+        uint256 oldLongPositionSize;
+        uint256 oldShortPositionSize;
+        uint256 oldDeltaQuote;
     }
 
     //
@@ -97,6 +81,20 @@ contract ClearingHouse is
     modifier onlyMaker() {
         // only maker
         require(_msgSender() == _maker, "CH_OM");
+        _;
+    }
+
+    modifier checkSwapCallback() {
+        // only exchange
+        require(_msgSender() == _exchange, "CH_OE");
+        _;
+    }
+
+    modifier checkMintCallback() {
+        address pool = _msgSender();
+        address baseToken = IUniswapV3Pool(pool).token0();
+        // UCB_FCV: failed callback validation
+        require(pool == IMarketRegistry(_marketRegistry).getPool(baseToken), "UCB_FCV");
         _;
     }
 
@@ -135,10 +133,6 @@ contract ClearingHouse is
         // CH_IFANC: InsuranceFund address is not contract
         _isContract(insuranceFundArg, "CH_IFANC");
 
-        address orderBookArg = IExchange(exchangeArg).getOrderBook();
-        // orderBook is not contract
-        _isContract(orderBookArg, "CH_OBNC");
-
         __ReentrancyGuard_init();
         __OwnerPausable_init();
 
@@ -147,7 +141,6 @@ contract ClearingHouse is
         _quoteToken = quoteTokenArg;
         _uniswapV3Factory = uniV3FactoryArg;
         _exchange = exchangeArg;
-        _orderBook = orderBookArg;
         _accountBalance = accountBalanceArg;
         _marketRegistry = marketRegistryArg;
         _insuranceFund = insuranceFundArg;
@@ -199,7 +192,7 @@ contract ClearingHouse is
             DataTypes.AddLiquidityResponse memory
         )
     {
-        return LiquidityLogic.addLiquidity(address(this), params);
+        return GenericLogic.addLiquidity(address(this), params);
     }
 
     /// @inheritdoc IClearingHouse
@@ -214,7 +207,7 @@ contract ClearingHouse is
         onlyMaker
         returns (DataTypes.RemoveLiquidityResponse memory)
     {
-        return LiquidityLogic.removeLiquidity(address(this), params);
+        return GenericLogic.removeLiquidity(address(this), params);
     }
 
     /// @inheritdoc IClearingHouse
@@ -231,7 +224,7 @@ contract ClearingHouse is
             fundingPaymentTotal = fundingPaymentTotal.add(fundingPayment);
         }
         // reward miner
-        ExchangeLogic.rewardMinerMint(address(this), trader, 0, fundingPaymentTotal.neg256());
+        ClearingHouseLogic.rewardMinerMint(address(this), trader, 0, fundingPaymentTotal.neg256());
     }
 
     /// @inheritdoc IClearingHouse
@@ -247,7 +240,6 @@ contract ClearingHouse is
     {
         // openPosition() is already published, returned types remain the same (without fee)
         (base, quote, ) = _openPositionFor(_msgSender(), params);
-
         return (base, quote);
     }
 
@@ -280,7 +272,7 @@ contract ClearingHouse is
         checkDeadline(params.deadline)
         returns (uint256 base, uint256 quote, uint256 fee)
     {
-        return ExchangeLogic.closePosition(address(this), _msgSender(), params);
+        return ClearingHouseLogic.closePosition(address(this), _msgSender(), params);
     }
 
     /// @inheritdoc IClearingHouse
@@ -295,7 +287,11 @@ contract ClearingHouse is
 
     /// @inheritdoc IUniswapV3MintCallback
     /// @dev namings here follow Uniswap's convention
-    function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external override {
+    function uniswapV3MintCallback(
+        uint256 amount0Owed,
+        uint256 amount1Owed,
+        bytes calldata data
+    ) external override checkMintCallback {
         // input requirement checks:
         //   amount0Owed: here
         //   amount1Owed: here
@@ -304,9 +300,9 @@ contract ClearingHouse is
         // For caller validation purposes it would be more efficient and more reliable to use
         // "msg.sender" instead of "_msgSender()" as contracts never call each other through GSN.
         // not orderbook
-        require(msg.sender == _orderBook, "CH_NOB");
+        // require(msg.sender == _orderBook, "CH_NOB");
 
-        IOrderBook.MintCallbackData memory callbackData = abi.decode(data, (IOrderBook.MintCallbackData));
+        UniswapV3Broker.MintCallbackData memory callbackData = abi.decode(data, (UniswapV3Broker.MintCallbackData));
 
         if (amount0Owed > 0) {
             address token = IUniswapV3Pool(callbackData.pool).token0();
@@ -320,14 +316,18 @@ contract ClearingHouse is
 
     /// @inheritdoc IUniswapV3SwapCallback
     /// @dev namings here follow Uniswap's convention
-    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external override {
+    function uniswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external override checkSwapCallback {
         // input requirement checks:
         //   amount0Delta: here
         //   amount1Delta: here
         //   data: X
         // For caller validation purposes it would be more efficient and more reliable to use
         // "msg.sender" instead of "_msgSender()" as contracts never call each other through GSN.
-        require(msg.sender == _exchange, "CH_OE");
+        // require(msg.sender == _exchange, "CH_OE");
 
         // swaps entirely within 0-liquidity regions are not supported -> 0 swap is forbidden
         // CH_F0S: forbidden 0 swap
@@ -375,11 +375,6 @@ contract ClearingHouse is
     }
 
     /// @inheritdoc IClearingHouse
-    function getOrderBook() external view override returns (address) {
-        return _orderBook;
-    }
-
-    /// @inheritdoc IClearingHouse
     function getAccountBalance() external view override returns (address) {
         return _accountBalance;
     }
@@ -412,9 +407,14 @@ contract ClearingHouse is
         return _marketRegistry;
     }
 
-    /// @inheritdoc IClearingHouse
-    function getAccountValue(address trader) public view override returns (int256) {
-        return IVault(_vault).getAccountValue(trader).parseSettlementToken(_settlementTokenDecimals);
+    // /// @inheritdoc IClearingHouse
+    // function getAccountValue(address trader) public view override returns (int256) {
+    //     return IVault(_vault).getAccountValue(trader).parseSettlementToken(_settlementTokenDecimals);
+    // }
+
+    function getLiquidity(address baseToken) external view returns (uint128) {
+        address pool = IMarketRegistry(_marketRegistry).getPool(baseToken);
+        return UniswapV3Broker.getLiquidity(pool);
     }
 
     //
@@ -433,8 +433,8 @@ contract ClearingHouse is
         bool isForced
     ) internal returns (uint256 base, uint256 quote, uint256 fee) {
         return
-            ExchangeLogic.liquidate(
-                ExchangeLogic.InternalLiquidateParams({
+            ClearingHouseLogic.liquidate(
+                ClearingHouseLogic.InternalLiquidateParams({
                     chAddress: address(this),
                     marketRegistry: _marketRegistry,
                     liquidator: _msgSender(),
@@ -450,7 +450,7 @@ contract ClearingHouse is
         address trader,
         DataTypes.OpenPositionParams memory params
     ) internal returns (uint256 base, uint256 quote, uint256 fee) {
-        return ExchangeLogic.openPositionFor(address(this), trader, params);
+        return ClearingHouseLogic.openPositionFor(address(this), trader, params);
     }
 
     //
@@ -491,20 +491,6 @@ contract ClearingHouse is
             return false;
         }
         return true;
-    }
-
-    struct InternalRepegParams {
-        uint160 oldSqrtMarkPrice;
-        uint256 oldMarkPrice;
-        uint160 newSqrtMarkPrice;
-        uint256 newMarkPrice;
-        uint256 spotPrice;
-        uint160 sqrtSpotPrice;
-        int256 oldDeltaBase;
-        uint256 newDeltaBase;
-        uint256 oldLongPositionSize;
-        uint256 oldShortPositionSize;
-        uint256 oldDeltaQuote;
     }
 
     ///REPEG

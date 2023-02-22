@@ -5,7 +5,7 @@ import helpers from "../helpers";
 
 import { ProxyAdmin } from "../../typechain/openzeppelin/ProxyAdmin";
 
-const {  waitForDeploy, verifyContract, loadDB, saveDB, upgradeContract } = helpers;
+const { waitForDeploy, verifyContract, loadDB, saveDB, upgradeContract } = helpers;
 
 async function main() {
     await deploy();
@@ -22,14 +22,11 @@ async function deploy() {
     var proxyAdmin = await hre.ethers.getContractAt('ProxyAdmin', deployData.proxyAdminAddress);
     // 
     if (deployData.exchange.implAddress == undefined || deployData.exchange.implAddress == '') {
-        var genericLogic = await hre.ethers.getContractAt('GenericLogic', deployData.genericLogic.address);
-        var fundingLogic = await hre.ethers.getContractAt('FundingLogic', deployData.fundingLogic.address);
-        var exchangeLogic = await hre.ethers.getContractAt('ExchangeLogic', deployData.exchangeLogic.address);
         let Exchange = await hre.ethers.getContractFactory("Exchange", {
             libraries: {
-                GenericLogic: genericLogic.address,
-                FundingLogic: fundingLogic.address,
-                ExchangeLogic: exchangeLogic.address,
+                UniswapV3Broker: deployData.uniswapV3Broker.address,
+                GenericLogic: deployData.genericLogic.address,
+                ClearingHouseLogic: deployData.clearingHouseLogic.address,
             },
         });
         const exchange = await waitForDeploy(await Exchange.deploy())
@@ -41,7 +38,7 @@ async function deploy() {
     }
     if (deployData.exchange.address == undefined || deployData.exchange.address == '') {
         var exchange = await hre.ethers.getContractAt('Exchange', deployData.exchange.implAddress);
-        var initializeData = exchange.interface.encodeFunctionData('initialize', [deployData.marketRegistry.address, deployData.orderBook.address, deployData.clearingHouseConfig.address]);
+        var initializeData = exchange.interface.encodeFunctionData('initialize', [deployData.marketRegistry.address, deployData.clearingHouseConfig.address]);
         var transparentUpgradeableProxy = await waitForDeploy(
             await TransparentUpgradeableProxy.deploy(
                 deployData.exchange.implAddress,
@@ -73,7 +70,7 @@ async function deploy() {
     }
     {
         var exchange = await hre.ethers.getContractAt('Exchange', deployData.exchange.implAddress);
-        var initializeData = exchange.interface.encodeFunctionData('initialize', [deployData.marketRegistry.address, deployData.orderBook.address, deployData.clearingHouseConfig.address]);
+        var initializeData = exchange.interface.encodeFunctionData('initialize', [deployData.marketRegistry.address, deployData.clearingHouseConfig.address]);
         await verifyContract(
             deployData,
             network,

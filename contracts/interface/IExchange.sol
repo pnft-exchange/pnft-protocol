@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.7.6;
 pragma abicoder v2;
-import { IOrderBook } from "./IOrderBook.sol";
 import { DataTypes } from "../types/DataTypes.sol";
+import { UniswapV3Broker } from "../lib/UniswapV3Broker.sol";
 
 interface IExchange {
     /// @param amount when closing position, amount(uint256) == takerPositionSize(int256),
@@ -125,10 +125,6 @@ interface IExchange {
     /// @return pnlToBeRealized The pnl that can be realized if trader reduce position
     function getPnlToBeRealized(RealizePnlParams memory params) external view returns (int256 pnlToBeRealized);
 
-    /// @notice Get `OrderBook` contract address
-    /// @return orderBook `OrderBook` contract address
-    function getOrderBook() external view returns (address orderBook);
-
     /// @notice Get `AccountBalance` contract address
     /// @return accountBalance `AccountBalance` contract address
     function getAccountBalance() external view returns (address accountBalance);
@@ -147,7 +143,7 @@ interface IExchange {
 
     function estimateSwap(
         DataTypes.OpenPositionParams memory params
-    ) external view returns (IOrderBook.ReplaySwapResponse memory response);
+    ) external view returns (UniswapV3Broker.ReplaySwapResponse memory response);
 
     function internalSwap(SwapParams memory params) external returns (SwapResponse memory);
 }

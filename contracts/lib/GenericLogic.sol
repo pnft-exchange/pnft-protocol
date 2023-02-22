@@ -6,7 +6,6 @@ import { IBaseToken } from "../interface/IBaseToken.sol";
 import { IIndexPrice } from "../interface/IIndexPrice.sol";
 import { IClearingHouse } from "../interface/IClearingHouse.sol";
 import { IClearingHouseConfig } from "../interface/IClearingHouseConfig.sol";
-import { IOrderBook } from "../interface/IOrderBook.sol";
 import { IExchange } from "../interface/IExchange.sol";
 import { IVault } from "../interface/IVault.sol";
 import { IMarketRegistry } from "../interface/IMarketRegistry.sol";
@@ -14,12 +13,10 @@ import { IInsuranceFund } from "../interface/IInsuranceFund.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { PerpSafeCast } from "./PerpSafeCast.sol";
 import { PerpMath } from "./PerpMath.sol";
-import { SettlementTokenMath } from "./SettlementTokenMath.sol";
 import { SafeMathUpgradeable } from "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
 import { SignedSafeMathUpgradeable } from "@openzeppelin/contracts-upgradeable/math/SignedSafeMathUpgradeable.sol";
 import { DataTypes } from "../types/DataTypes.sol";
-
-import "hardhat/console.sol";
+import { UniswapV3Broker } from "./UniswapV3Broker.sol";
 
 library GenericLogic {
     using SafeMathUpgradeable for uint256;
@@ -31,7 +28,6 @@ library GenericLogic {
     using PerpMath for uint160;
     using PerpMath for uint128;
     using PerpMath for int256;
-    using SettlementTokenMath for int256;
 
     uint256 internal constant _FULLY_CLOSED_RATIO = 1e18;
 
@@ -43,6 +39,18 @@ library GenericLogic {
         uint256 quote;
         uint256 oppositeAmountBound;
     }
+
+    struct InternalUpdateInfoMultiplierVars {
+        bool isBaseToQuote;
+        int256 deltaBase;
+        uint256 newDeltaBase;
+        uint256 newDeltaQuote;
+        uint256 newLongPositionSizeRate;
+        uint256 newShortPositionSizeRate;
+        int256 costDeltaQuote;
+        bool isEnoughFund;
+    }
+
     //event
 
     event FundingPaymentSettled(address indexed trader, address indexed baseToken, int256 fundingPayment);
@@ -99,6 +107,17 @@ library GenericLogic {
     event ReferredPositionChanged(bytes32 indexed referralCode);
 
     //====================== END Event
+
+    function requireNotMaker(address chAddress, address maker) internal view {
+        // not Maker
+        require(maker != IClearingHouse(chAddress).getMaker(), "CHD_NM");
+    }
+
+    function isLiquidatable(address chAddress, address trader) internal view returns (bool) {
+        return
+            getAccountValue(chAddress, trader) <
+            IAccountBalance(IClearingHouse(chAddress).getAccountBalance()).getMarginRequirementForLiquidation(trader);
+    }
 
     function checkMarketOpen(address baseToken) public view {
         // CH_MNO: Market not opened
@@ -250,17 +269,6 @@ library GenericLogic {
                 : oppositeAmountBound;
     }
 
-    function requireNotMaker(address chAddress, address maker) internal view {
-        // not Maker
-        require(maker != IClearingHouse(chAddress).getMaker(), "CHD_NM");
-    }
-
-    function isLiquidatable(address chAddress, address trader) internal view returns (bool) {
-        return
-            getAccountValue(chAddress, trader) <
-            IAccountBalance(IClearingHouse(chAddress).getAccountBalance()).getMarginRequirementForLiquidation(trader);
-    }
-
     function getLiquidationPenaltyRatio(address chAddress) internal view returns (uint24) {
         return IClearingHouseConfig(IClearingHouse(chAddress).getClearingHouseConfig()).getLiquidationPenaltyRatio();
     }
@@ -395,7 +403,7 @@ library GenericLogic {
         int256 oldDeltaBase = oldLongPositionSize.toInt256().sub(oldShortPositionSize.toInt256());
         if (oldDeltaBase != 0) {
             bool isBaseToQuote = oldDeltaBase > 0 ? true : false;
-            IOrderBook.ReplaySwapResponse memory estimate = IExchange(IClearingHouse(chAddress).getExchange())
+            UniswapV3Broker.ReplaySwapResponse memory estimate = IExchange(IClearingHouse(chAddress).getExchange())
                 .estimateSwap(
                     DataTypes.OpenPositionParams({
                         baseToken: baseToken,
@@ -410,17 +418,6 @@ library GenericLogic {
                 );
             deltaQuote = isBaseToQuote ? estimate.amountOut : estimate.amountIn;
         }
-    }
-
-    struct InternalUpdateInfoMultiplierVars {
-        bool isBaseToQuote;
-        int256 deltaBase;
-        uint256 newDeltaBase;
-        uint256 newDeltaQuote;
-        uint256 newLongPositionSizeRate;
-        uint256 newShortPositionSizeRate;
-        int256 costDeltaQuote;
-        bool isEnoughFund;
     }
 
     function updateInfoMultiplier(
@@ -460,7 +457,7 @@ library GenericLogic {
 
         vars.deltaBase = longPositionSize.toInt256().sub(shortPositionSize.toInt256());
         if (vars.deltaBase != 0) {
-            IOrderBook.ReplaySwapResponse memory estimate = IExchange(IClearingHouse(chAddress).getExchange())
+            UniswapV3Broker.ReplaySwapResponse memory estimate = IExchange(IClearingHouse(chAddress).getExchange())
                 .estimateSwap(
                     DataTypes.OpenPositionParams({
                         baseToken: baseToken,
@@ -515,7 +512,7 @@ library GenericLogic {
             }
             if (!vars.isEnoughFund) {
                 // estimate cost to base
-                IOrderBook.ReplaySwapResponse memory estimate = IExchange(IClearingHouse(chAddress).getExchange())
+                UniswapV3Broker.ReplaySwapResponse memory estimate = IExchange(IClearingHouse(chAddress).getExchange())
                     .estimateSwap(
                         DataTypes.OpenPositionParams({
                             baseToken: baseToken,
@@ -570,64 +567,119 @@ library GenericLogic {
         }
     }
 
-    struct InternalRealizePnlParams {
-        address trader;
-        address baseToken;
-        int256 takerPositionSize;
-        int256 takerOpenNotional;
-        int256 base;
-        int256 quote;
+    function addLiquidity(
+        address chAddress,
+        DataTypes.AddLiquidityParams calldata params
+    )
+        public
+        returns (
+            // check onlyLiquidityAdmin
+            DataTypes.AddLiquidityResponse memory
+        )
+    {
+        // input requirement checks:
+        //   baseToken: in Exchange.settleFunding()
+        //   base & quote: in LiquidityAmounts.getLiquidityForAmounts() -> FullMath.mulDiv()
+        //   lowerTick & upperTick: in UniswapV3Pool._modifyPosition()
+        //   minBase, minQuote & deadline: here
+
+        checkMarketOpen(params.baseToken);
+
+        // This condition is to prevent the intentional bad debt attack through price manipulation.
+        // CH_OMPS: Over the maximum price spread
+        // require(!IExchange(IClearingHouse(chAddress).getExchange()).isOverPriceSpread(params.baseToken), "CH_OMPS");
+
+        settleFundingGlobal(chAddress, params.baseToken);
+
+        // for multiplier
+        (uint256 oldLongPositionSize, uint256 oldShortPositionSize, uint256 oldDeltaQuote) = GenericLogic
+            .getInfoMultiplier(chAddress, params.baseToken);
+        // for multiplier
+
+        // note that we no longer check available tokens here because CH will always auto-mint in UniswapV3MintCallback
+        UniswapV3Broker.AddLiquidityResponse memory response = UniswapV3Broker.addLiquidity(
+            IMarketRegistry(IClearingHouse(chAddress).getMarketRegistry()).getPool(params.baseToken),
+            UniswapV3Broker.AddLiquidityParams({ baseToken: params.baseToken, liquidity: params.liquidity })
+        );
+
+        // for multiplier
+        updateInfoMultiplier(
+            chAddress,
+            params.baseToken,
+            oldLongPositionSize,
+            oldShortPositionSize,
+            oldDeltaQuote,
+            0,
+            0,
+            true
+        );
+        // for multiplier
+
+        emit LiquidityChanged(
+            params.baseToken,
+            IClearingHouse(chAddress).getQuoteToken(),
+            response.base.toInt256(),
+            response.quote.toInt256(),
+            response.liquidity.toInt128()
+        );
+
+        return
+            DataTypes.AddLiquidityResponse({
+                base: response.base,
+                quote: response.quote,
+                liquidity: response.liquidity
+            });
     }
 
-    function getPnlToBeRealized(InternalRealizePnlParams memory params) external pure returns (int256) {
-        // closedRatio is based on the position size
-        uint256 closedRatio = FullMath.mulDiv(params.base.abs(), _FULLY_CLOSED_RATIO, params.takerPositionSize.abs());
+    function removeLiquidity(
+        address chAddress,
+        DataTypes.RemoveLiquidityParams memory params
+    ) public returns (DataTypes.RemoveLiquidityResponse memory) {
+        // input requirement checks:
+        //   baseToken: in Exchange.settleFunding()
+        //   lowerTick & upperTick: in UniswapV3Pool._modifyPosition()
+        //   liquidity: in LiquidityMath.addDelta()
+        //   minBase, minQuote & deadline: here
 
-        int256 pnlToBeRealized;
-        // if closedRatio <= 1, it's reducing or closing a position; else, it's opening a larger reverse position
-        if (closedRatio <= _FULLY_CLOSED_RATIO) {
-            // https://docs.google.com/spreadsheets/d/1QwN_UZOiASv3dPBP7bNVdLR_GTaZGUrHW3-29ttMbLs/edit#gid=148137350
-            // taker:
-            // step 1: long 20 base
-            // openNotionalFraction = 252.53
-            // openNotional = -252.53
-            // step 2: short 10 base (reduce half of the position)
-            // quote = 137.5
-            // closeRatio = 10/20 = 0.5
-            // reducedOpenNotional = openNotional * closedRatio = -252.53 * 0.5 = -126.265
-            // realizedPnl = quote + reducedOpenNotional = 137.5 + -126.265 = 11.235
-            // openNotionalFraction = openNotionalFraction - quote + realizedPnl
-            //                      = 252.53 - 137.5 + 11.235 = 126.265
-            // openNotional = -openNotionalFraction = 126.265
+        // CH_MP: Market paused
+        require(!IBaseToken(params.baseToken).isPaused(), "CH_MP");
 
-            // overflow inspection:
-            // max closedRatio = 1e18; range of oldOpenNotional = (-2 ^ 255, 2 ^ 255)
-            // only overflow when oldOpenNotional < -2 ^ 255 / 1e18 or oldOpenNotional > 2 ^ 255 / 1e18
-            int256 reducedOpenNotional = params.takerOpenNotional.mulDiv(closedRatio.toInt256(), _FULLY_CLOSED_RATIO);
-            pnlToBeRealized = params.quote.add(reducedOpenNotional);
-        } else {
-            // https://docs.google.com/spreadsheets/d/1QwN_UZOiASv3dPBP7bNVdLR_GTaZGUrHW3-29ttMbLs/edit#gid=668982944
-            // taker:
-            // step 1: long 20 base
-            // openNotionalFraction = 252.53
-            // openNotional = -252.53
-            // step 2: short 30 base (open a larger reverse position)
-            // quote = 337.5
-            // closeRatio = 30/20 = 1.5
-            // closedPositionNotional = quote / closeRatio = 337.5 / 1.5 = 225
-            // remainsPositionNotional = quote - closedPositionNotional = 337.5 - 225 = 112.5
-            // realizedPnl = closedPositionNotional + openNotional = -252.53 + 225 = -27.53
-            // openNotionalFraction = openNotionalFraction - quote + realizedPnl
-            //                      = 252.53 - 337.5 + -27.53 = -112.5
-            // openNotional = -openNotionalFraction = remainsPositionNotional = 112.5
+        settleFundingGlobal(chAddress, params.baseToken);
 
-            // overflow inspection:
-            // max & min tick = 887272, -887272; max liquidity = 2 ^ 128
-            // max quote = 2^128 * (sqrt(1.0001^887272) - sqrt(1.0001^-887272)) = 6.276865796e57 < 2^255 / 1e18
-            int256 closedPositionNotional = params.quote.mulDiv(int256(_FULLY_CLOSED_RATIO), closedRatio);
-            pnlToBeRealized = params.takerOpenNotional.add(closedPositionNotional);
-        }
+        // for multiplier
+        (uint256 oldLongPositionSize, uint256 oldShortPositionSize, uint256 oldDeltaQuote) = GenericLogic
+            .getInfoMultiplier(chAddress, params.baseToken);
+        // for multiplier
 
-        return pnlToBeRealized;
+        // must settle funding first
+
+        UniswapV3Broker.RemoveLiquidityResponse memory response = UniswapV3Broker.removeLiquidity(
+            IMarketRegistry(IClearingHouse(chAddress).getMarketRegistry()).getPool(params.baseToken),
+            chAddress,
+            UniswapV3Broker.RemoveLiquidityParams({ baseToken: params.baseToken, liquidity: params.liquidity })
+        );
+
+        // for multiplier
+        updateInfoMultiplier(
+            chAddress,
+            params.baseToken,
+            oldLongPositionSize,
+            oldShortPositionSize,
+            oldDeltaQuote,
+            0,
+            0,
+            true
+        );
+        // for multiplier
+
+        emit LiquidityChanged(
+            params.baseToken,
+            IClearingHouse(chAddress).getQuoteToken(),
+            response.base.neg256(),
+            response.quote.neg256(),
+            params.liquidity.neg128()
+        );
+
+        return DataTypes.RemoveLiquidityResponse({ quote: response.quote, base: response.base });
     }
 }

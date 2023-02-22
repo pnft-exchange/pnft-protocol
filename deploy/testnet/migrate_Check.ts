@@ -10,7 +10,6 @@ import {
     InsuranceFund,
     MarketRegistry,
     NftPriceFeed,
-    OrderBook,
     TestClearingHouse,
     TestWETH9,
     UniswapV3Pool,
@@ -68,14 +67,12 @@ describe("Deployment check", () => {
         deployData.uniswapV3Factory = {} as ContractData
         deployData.clearingHouseConfig = {} as ContractData
         deployData.marketRegistry = {} as ContractData
-        deployData.orderBook = {} as ContractData
         deployData.accountBalance = {} as ContractData
         deployData.exchange = {} as ContractData
         deployData.insuranceFund = {} as ContractData
         deployData.vault = {} as ContractData
-        deployData.collateralManager = {} as ContractData
+        deployData.uniswapV3Broker = {} as ContractData
         deployData.genericLogic = {} as ContractData
-        deployData.vaultLogic = {} as ContractData
         deployData.clearingHouseLogic = {} as ContractData
         deployData.clearingHouse = {} as ContractData
 
@@ -188,24 +185,28 @@ describe("Deployment check", () => {
                 deployData.uniswapV3Factory.address = uniV3Factory.address;
             }
         }
-        const GenericLogic = await ethers.getContractFactory("GenericLogic");
+        const UniswapV3Broker = await ethers.getContractFactory("UniswapV3Broker");
+        if (deployData.uniswapV3Broker.address == undefined || deployData.uniswapV3Broker.address == '') {
+            const uniswapV3Broker = await waitForDeploy(await UniswapV3Broker.deploy())
+            {
+                deployData.uniswapV3Broker.address = uniswapV3Broker.address;
+            }
+        }
+        const GenericLogic = await ethers.getContractFactory("GenericLogic", {
+            libraries: {
+                UniswapV3Broker: deployData.uniswapV3Broker.address,
+            },
+        });
         if (deployData.genericLogic.address == undefined || deployData.genericLogic.address == '') {
             const genericLogic = await waitForDeploy(await GenericLogic.deploy())
             {
                 deployData.genericLogic.address = genericLogic.address;
             }
         }
-        const VaultLogic = await ethers.getContractFactory("VaultLogic");
-        if (deployData.vaultLogic.address == undefined || deployData.vaultLogic.address == '') {
-            const vaultLogic = await waitForDeploy(await VaultLogic.deploy())
-            {
-                deployData.vaultLogic.address = vaultLogic.address;
-            }
-        }
-        var genericLogic = await ethers.getContractAt('GenericLogic', deployData.genericLogic.address);
         const ClearingHouseLogic = await ethers.getContractFactory("ClearingHouseLogic", {
             libraries: {
-                GenericLogic: genericLogic.address,
+                UniswapV3Broker: deployData.uniswapV3Broker.address,
+                GenericLogic: deployData.genericLogic.address,
             },
         });
         {
@@ -214,7 +215,6 @@ describe("Deployment check", () => {
                 deployData.clearingHouseLogic.address = clearingHouseLogic.address;
             }
         }
-        var clearingHouseLogic = await ethers.getContractAt('ClearingHouseLogic', deployData.clearingHouseLogic.address);
 
         const ClearingHouseConfig = await ethers.getContractFactory("ClearingHouseConfig");
         {
@@ -237,7 +237,11 @@ describe("Deployment check", () => {
                 deployData.clearingHouseConfig.address = transparentUpgradeableProxy.address;
             }
         }
-        const MarketRegistry = await ethers.getContractFactory("MarketRegistry");
+        const MarketRegistry = await ethers.getContractFactory("MarketRegistry", {
+            libraries: {
+                UniswapV3Broker: deployData.uniswapV3Broker.address,
+            },
+        });
         {
             const marketRegistry = await waitForDeploy(await MarketRegistry.deploy())
             {
@@ -258,27 +262,6 @@ describe("Deployment check", () => {
                 deployData.marketRegistry.address = transparentUpgradeableProxy.address;
             }
         }
-        const OrderBook = await ethers.getContractFactory("OrderBook");
-        {
-            const orderBook = await waitForDeploy(await OrderBook.deploy())
-            {
-                deployData.orderBook.implAddress = orderBook.address;
-            }
-        }
-        {
-            var orderBook = await ethers.getContractAt('OrderBook', deployData.orderBook.implAddress);
-            var initializeData = orderBook.interface.encodeFunctionData('initialize', [deployData.marketRegistry.address]);
-            var transparentUpgradeableProxy = await waitForDeploy(
-                await TransparentUpgradeableProxy.deploy(
-                    deployData.orderBook.implAddress,
-                    proxyAdmin.address,
-                    initializeData,
-                )
-            );
-            {
-                deployData.orderBook.address = transparentUpgradeableProxy.address;
-            }
-        }
         const AccountBalance = await ethers.getContractFactory("AccountBalance");
         {
             const accountBalance = await waitForDeploy(await AccountBalance.deploy())
@@ -288,7 +271,7 @@ describe("Deployment check", () => {
         }
         {
             var accountBalance = await ethers.getContractAt('AccountBalance', deployData.accountBalance.implAddress);
-            var initializeData = accountBalance.interface.encodeFunctionData('initialize', [deployData.clearingHouseConfig.address, deployData.orderBook.address]);
+            var initializeData = accountBalance.interface.encodeFunctionData('initialize', [deployData.clearingHouseConfig.address]);
             var transparentUpgradeableProxy = await waitForDeploy(
                 await TransparentUpgradeableProxy.deploy(
                     deployData.accountBalance.implAddress,
@@ -302,8 +285,9 @@ describe("Deployment check", () => {
         }
         let Exchange = await ethers.getContractFactory("Exchange", {
             libraries: {
-                GenericLogic: genericLogic.address,
-                ClearingHouseLogic: clearingHouseLogic.address,
+                UniswapV3Broker: deployData.uniswapV3Broker.address,
+                GenericLogic: deployData.genericLogic.address,
+                ClearingHouseLogic: deployData.clearingHouseLogic.address,
             },
         });
         if (deployData.exchange.implAddress == undefined || deployData.exchange.implAddress == '') {
@@ -314,7 +298,7 @@ describe("Deployment check", () => {
         }
         {
             var exchange = await ethers.getContractAt('Exchange', deployData.exchange.implAddress);
-            var initializeData = exchange.interface.encodeFunctionData('initialize', [deployData.marketRegistry.address, deployData.orderBook.address, deployData.clearingHouseConfig.address]);
+            var initializeData = exchange.interface.encodeFunctionData('initialize', [deployData.marketRegistry.address, deployData.clearingHouseConfig.address]);
             var transparentUpgradeableProxy = await waitForDeploy(
                 await TransparentUpgradeableProxy.deploy(
                     deployData.exchange.implAddress,
@@ -347,12 +331,7 @@ describe("Deployment check", () => {
                 deployData.insuranceFund.address = transparentUpgradeableProxy.address;
             }
         }
-        var vaultLogic = await ethers.getContractAt('VaultLogic', deployData.vaultLogic.address);
-        let Vault = await ethers.getContractFactory("Vault", {
-            libraries: {
-                VaultLogic: vaultLogic.address,
-            },
-        });
+        let Vault = await ethers.getContractFactory("Vault");
         {
             const vault = await waitForDeploy(await Vault.deploy())
             {
@@ -379,41 +358,11 @@ describe("Deployment check", () => {
                 deployData.vault.address = transparentUpgradeableProxy.address;
             }
         }
-        const CollateralManager = await ethers.getContractFactory("CollateralManager");
-        if (deployData.collateralManager.implAddress == undefined || deployData.collateralManager.implAddress == '') {
-            const collateralManager = await waitForDeploy(await CollateralManager.deploy())
-            {
-                deployData.collateralManager.implAddress = collateralManager.address;
-            }
-        }
-        if (deployData.collateralManager.address == undefined || deployData.collateralManager.address == '') {
-            var collateralManager = await ethers.getContractAt('CollateralManager', deployData.collateralManager.implAddress);
-            var initializeData = collateralManager.interface.encodeFunctionData('initialize', [
-                deployData.clearingHouseConfig.address,
-                deployData.vault.address,
-                3, // maxCollateralTokensPerAccount
-                "750000", // debtNonSettlementTokenValueRatio
-                "500000", // liquidationRatio
-                "5000", // mmRatioBuffer
-                "12500", // clInsuranceFundFeeRatio
-                parseUnits("10", deployData.wETH.decimals), // debtThreshold
-                parseUnits("0.3", deployData.wETH.decimals), // collateralValueDust
-            ]);
-            var transparentUpgradeableProxy = await waitForDeploy(
-                await TransparentUpgradeableProxy.deploy(
-                    deployData.collateralManager.implAddress,
-                    proxyAdmin.address,
-                    initializeData,
-                )
-            );
-            {
-                deployData.collateralManager.address = transparentUpgradeableProxy.address;
-            }
-        }
         let ClearingHouse = await ethers.getContractFactory("ClearingHouse", {
             libraries: {
-                GenericLogic: genericLogic.address,
-                ClearingHouseLogic: clearingHouseLogic.address,
+                UniswapV3Broker: deployData.uniswapV3Broker.address,
+                GenericLogic: deployData.genericLogic.address,
+                ClearingHouseLogic: deployData.clearingHouseLogic.address,
             },
         });
         {
@@ -451,12 +400,10 @@ describe("Deployment check", () => {
             var uniswapV3Factory = await ethers.getContractAt('UniswapV3Factory', deployData.uniswapV3Factory.address);
             var clearingHouseConfig = await ethers.getContractAt('ClearingHouseConfig', deployData.clearingHouseConfig.address);
             var marketRegistry = (await ethers.getContractAt('MarketRegistry', deployData.marketRegistry.address));
-            var orderBook = (await ethers.getContractAt('OrderBook', deployData.orderBook.address));
             var accountBalance = (await ethers.getContractAt('AccountBalance', deployData.accountBalance.address));
             var exchange = await ethers.getContractAt('Exchange', deployData.exchange.address);
             var insuranceFund = await ethers.getContractAt('InsuranceFund', deployData.insuranceFund.address);
             var vault = await ethers.getContractAt('Vault', deployData.vault.address);
-            var collateralManager = await ethers.getContractAt('CollateralManager', deployData.collateralManager.address);
             var clearingHouse = await ethers.getContractAt('ClearingHouse', deployData.clearingHouse.address);
 
             await waitForTx(await vault.setWETH9(deployData.wETH.address), 'vault.setWETH9(deployData.wETH.address)')
@@ -464,13 +411,10 @@ describe("Deployment check", () => {
             var uniFeeTier = 3000 // 1%
 
             await exchange.setAccountBalance(accountBalance.address)
-            await orderBook.setExchange(exchange.address)
-            await vault.setCollateralManager(collateralManager.address)
             await insuranceFund.setVault(vault.address)
             await accountBalance.setVault(vault.address)
             await clearingHouseConfig.setSettlementTokenBalanceCap(ethers.constants.MaxUint256)
             await marketRegistry.setClearingHouse(clearingHouse.address)
-            await orderBook.setClearingHouse(clearingHouse.address)
             await exchange.setClearingHouse(clearingHouse.address)
             await accountBalance.setClearingHouse(clearingHouse.address)
             await vault.setClearingHouse(clearingHouse.address)
@@ -503,6 +447,8 @@ describe("Deployment check", () => {
             await vBAYC.mintMaximumTo(clearingHouse.address)
             await vMAYC.mintMaximumTo(clearingHouse.address)
 
+            let cardinalityNext = 500
+
             // initMarket
             var maxTickCrossedWithinBlock: number = getMaxTickRange()
             // vBAYC
@@ -512,8 +458,8 @@ describe("Deployment check", () => {
                 await uniPool.initialize(encodePriceSqrt('1', "1"))
                 const uniFeeRatio = await uniPool.fee()
                 await waitForTx(
-                    await uniPool.increaseObservationCardinalityNext((2 ^ 16) - 1),
-                    'uniPool.increaseObservationCardinalityNext((2 ^ 16) - 1)'
+                    await uniPool.increaseObservationCardinalityNext(cardinalityNext),
+                    'uniPool.increaseObservationCardinalityNext(' + cardinalityNext + ''
                 )
                 await marketRegistry.addPool(vBAYC.address, uniFeeRatio)
                 await exchange.setMaxTickCrossedWithinBlock(vBAYC.address, maxTickCrossedWithinBlock)
@@ -525,8 +471,8 @@ describe("Deployment check", () => {
                 await uniPool.initialize(encodePriceSqrt('1', "1"))
                 const uniFeeRatio = await uniPool.fee()
                 await waitForTx(
-                    await uniPool.increaseObservationCardinalityNext((2 ^ 16) - 1),
-                    'uniPool.increaseObservationCardinalityNext((2 ^ 16) - 1)'
+                    await uniPool.increaseObservationCardinalityNext(cardinalityNext),
+                    'uniPool.increaseObservationCardinalityNext(' + cardinalityNext + ''
                 )
                 await marketRegistry.addPool(vMAYC.address, uniFeeRatio)
                 await exchange.setMaxTickCrossedWithinBlock(vMAYC.address, maxTickCrossedWithinBlock)
@@ -537,12 +483,10 @@ describe("Deployment check", () => {
             var uniswapV3Factory = await ethers.getContractAt('UniswapV3Factory', deployData.uniswapV3Factory.address);
             var clearingHouseConfig = await ethers.getContractAt('ClearingHouseConfig', deployData.clearingHouseConfig.address);
             var marketRegistry = (await ethers.getContractAt('MarketRegistry', deployData.marketRegistry.address));
-            var orderBook = (await ethers.getContractAt('OrderBook', deployData.orderBook.address));
             var accountBalance = (await ethers.getContractAt('AccountBalance', deployData.accountBalance.address));
             var exchange = await ethers.getContractAt('Exchange', deployData.exchange.address);
             var insuranceFund = await ethers.getContractAt('InsuranceFund', deployData.insuranceFund.address);
             var vault = await ethers.getContractAt('Vault', deployData.vault.address);
-            var collateralManager = await ethers.getContractAt('CollateralManager', deployData.collateralManager.address);
             var clearingHouse = await ethers.getContractAt('ClearingHouse', deployData.clearingHouse.address);
 
             var wETH = (await ethers.getContractAt('TestWETH9', deployData.wETH.address)) as TestWETH9;
