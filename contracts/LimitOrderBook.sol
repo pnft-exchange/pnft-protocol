@@ -193,23 +193,6 @@ contract LimitOrderBook is
         );
     }
 
-    /// @inheritdoc ILimitOrderBook
-    function closeLimitOrder(LimitOrderParams memory order) external override {
-        // LOB_OSMBS: Order's Signer Must Be Sender
-        require(_msgSender() == order.trader, "LOB_OSMBS");
-
-        // we didn't require `signature` as input like fillLimitOrder(),
-        // so trader can actually cancel an order that is not existed
-        bytes32 orderHash = getOrderHash(order);
-
-        // LOB_OMBU: Order Must Be Filled
-        require(_ordersStatus[orderHash] == ILimitOrderBook.OrderStatus.Filled, "LOB_OMBU");
-
-        _ordersStatus[orderHash] = ILimitOrderBook.OrderStatus.Closed;
-
-        //todo call clearinghouse
-    }
-
     //
     // PUBLIC VIEW
     //

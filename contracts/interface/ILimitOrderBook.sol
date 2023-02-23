@@ -116,8 +116,6 @@ interface ILimitOrderBook {
     // Only available if orderType is StopLossLimitOrder/TakeProfitLimitOrder, otherwise set to 0
     function fillLimitOrder(LimitOrderParams memory order, bytes memory signature) external;
 
-    function closeLimitOrder(LimitOrderParams memory order) external;
-
     /// @param order LimitOrder struct
     function cancelLimitOrder(LimitOrderParams memory order) external;
 
