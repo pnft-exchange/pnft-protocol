@@ -202,8 +202,8 @@ contract LimitOrderBook is
         // so trader can actually cancel an order that is not existed
         bytes32 orderHash = getOrderHash(order);
 
-        // LOB_OMBU: Order Must Be Unfilled
-        require(_ordersStatus[orderHash] == ILimitOrderBook.OrderStatus.Unfilled, "LOB_OMBU");
+        // LOB_OMBU: Order Must Be Filled
+        require(_ordersStatus[orderHash] == ILimitOrderBook.OrderStatus.Filled, "LOB_OMBU");
 
         _ordersStatus[orderHash] = ILimitOrderBook.OrderStatus.Closed;
 
