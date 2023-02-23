@@ -224,22 +224,31 @@ contract LimitOrderBook is
             "LOB_WC"
         );
         bool isBaseToQuote = storedOrder.base > 0 ? true : false;
-        (int256 exchangedPositionSize, int256 exchangedPositionNotional, uint256 fee) = _fillLimitOrder(
-            LimitOrderParams({
-                orderType: storedOrder.orderType,
-                nonce: 0,
-                trader: storedOrder.trader,
-                baseToken: storedOrder.baseToken,
+        (uint256 base, uint256 quote, uint256 fee) = IClearingHouse(clearingHouse).openPositionFor(
+            order.trader,
+            DataTypes.OpenPositionParams({
+                baseToken: order.baseToken,
                 isBaseToQuote: isBaseToQuote,
                 isExactInput: isBaseToQuote,
                 amount: storedOrder.base.abs(),
                 oppositeAmountBound: 0,
                 deadline: _blockTimestamp() + 60,
-                triggerPrice: 0,
-                takeProfitPrice: 0,
-                stopLossPrice: 0
+                sqrtPriceLimitX96: 0,
+                referralCode: ""
             })
         );
+        // LOB_OVTS: Order Value Too Small
+        require(quote >= minOrderValue, "LOB_OVTS");
+
+        int256 exchangedPositionSize;
+        int256 exchangedPositionNotional;
+        if (order.isBaseToQuote) {
+            exchangedPositionSize = base.neg256();
+            exchangedPositionNotional = quote.toInt256();
+        } else {
+            exchangedPositionSize = base.toInt256();
+            exchangedPositionNotional = quote.neg256();
+        }
 
         emit LimitOrderClosed(
             order.trader,
