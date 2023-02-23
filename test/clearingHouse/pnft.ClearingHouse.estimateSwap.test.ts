@@ -8,7 +8,7 @@ import {
     AccountBalance,
     BaseToken,
     ClearingHouseConfig,
-    Exchange,
+    VPool,
     InsuranceFund,
     MarketRegistry,
     OrderBook,
@@ -40,11 +40,11 @@ describe("ClearingHouse multiplier", () => {
     let clearingHouse: TestClearingHouse
     let clearingHouseConfig: ClearingHouseConfig
     let marketRegistry: MarketRegistry
-    let orderBook: OrderBook
+    
     let accountBalance: TestAccountBalance
     let vault: Vault
     let insuranceFund: InsuranceFund
-    let exchange: Exchange
+    let vPool: VPool
     let collateral: TestERC20
     let baseToken: BaseToken
     let quoteToken: QuoteToken
@@ -61,11 +61,11 @@ describe("ClearingHouse multiplier", () => {
         fixture = await loadFixture(createClearingHouseFixture())
         clearingHouse = fixture.clearingHouse as TestClearingHouse
         clearingHouseConfig = fixture.clearingHouseConfig as ClearingHouseConfig
-        orderBook = fixture.orderBook
+        
         accountBalance = fixture.accountBalance as TestAccountBalance
         vault = fixture.vault
         insuranceFund = fixture.insuranceFund as InsuranceFund
-        exchange = fixture.exchange as Exchange
+        vPool = fixture.vPool as VPool
         marketRegistry = fixture.marketRegistry
         pool = fixture.pool as UniswapV3Pool
         collateral = fixture.WETH
@@ -102,7 +102,7 @@ describe("ClearingHouse multiplier", () => {
         //     liquidity: parseEther('1000'),
         //     deadline: ethers.constants.MaxUint256,
         // })
-        // let res = await exchange.connect(trader1).estimateSwap({
+        // let res = await vPool.connect(trader1).estimateSwap({
         //     baseToken: baseToken.address,
         //     isBaseToQuote: true,
         //     isExactInput: false,
@@ -126,20 +126,7 @@ describe("ClearingHouse multiplier", () => {
             liquidity: parseEther('460.55'),
             deadline: ethers.constants.MaxUint256,
         })
-        // let res = await exchange.connect(trader1).estimateSwap({
-        //     baseToken: baseToken.address,
-        //     isBaseToQuote: false,
-        //     isExactInput: false,
-        //     oppositeAmountBound: 0,
-        //     amount: ethers.constants.MaxUint256.div(1e10),
-        //     sqrtPriceLimitX96: encodePriceSqrt('77', '1'),
-        //     deadline: ethers.constants.MaxUint256,
-        //     referralCode: ethers.constants.HashZero,
-        // })
-
-        let amount = '1.8'
-
-        let res1 = await exchange.connect(trader1).estimateSwap({
+        let res = await vPool.connect(trader1).estimateSwap({
             baseToken: baseToken.address,
             isBaseToQuote: true,
             isExactInput: true,
@@ -158,12 +145,7 @@ describe("ClearingHouse multiplier", () => {
         mockedNFTPriceFeed.smocked.getPrice.will.return.with(async () => {
             return parseUnits(newPrice, 18)
         })
-
-        await forwardBothTimestamps(clearingHouse, 86400)
-
-        await clearingHouse.repeg(baseToken.address)
-
-        let res2 = await exchange.connect(trader1).estimateSwap({
+        res = await vPool.connect(trader1).estimateSwap({
             baseToken: baseToken.address,
             isBaseToQuote: true,
             isExactInput: true,
