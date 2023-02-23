@@ -279,7 +279,7 @@ contract LimitOrderBook is
     //
 
     function _fillLimitOrder(LimitOrderParams memory order) internal returns (int256, int256, uint256) {
-        // _verifyTriggerPrice(order);
+        _verifyTriggerPrice(order);
 
         (uint256 base, uint256 quote, uint256 fee) = IClearingHouse(clearingHouse).openPositionFor(
             order.trader,
