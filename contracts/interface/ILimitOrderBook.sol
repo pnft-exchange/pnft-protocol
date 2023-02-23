@@ -95,6 +95,17 @@ interface ILimitOrderBook {
         uint256 fee
     );
 
+    event LimitOrderClosed(
+        address indexed trader,
+        address indexed baseToken,
+        bytes32 orderHash,
+        uint8 orderType,
+        address keeper,
+        int256 exchangedPositionSize,
+        int256 exchangedPositionNotional,
+        uint256 fee
+    );
+
     /// @notice Emitted when the limit order is cancelled
     /// @param trader The address of trader who cancelled the limit order
     /// @param baseToken The address of baseToken (vETH, vBTC, ...)
@@ -118,6 +129,9 @@ interface ILimitOrderBook {
 
     /// @param order LimitOrder struct
     function cancelLimitOrder(LimitOrderParams memory order) external;
+
+    /// @param order LimitOrder struct
+    function closeLimitOrder(LimitOrderParams memory order) external;
 
     function getOrderStatus(bytes32 orderHash) external view returns (ILimitOrderBook.OrderStatus);
 

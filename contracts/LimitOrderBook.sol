@@ -193,6 +193,66 @@ contract LimitOrderBook is
         );
     }
 
+    /// @inheritdoc ILimitOrderBook
+    function closeLimitOrder(LimitOrderParams memory order) external override {
+        address sender = _msgSender();
+
+        // short term solution: mitigate that attacker can drain LimitOrderRewardVault
+        // LOB_SMBE: Sender Must Be EOA
+        require(!sender.isContract(), "LOB_SMBE");
+
+        // we didn't require `signature` as input like fillLimitOrder(),
+        // so trader can actually cancel an order that is not existed
+        bytes32 orderHash = getOrderHash(order);
+
+        // LOB_OMBU: Order Must Be Filled
+        require(_ordersStatus[orderHash] == ILimitOrderBook.OrderStatus.Filled, "LOB_OMBF");
+
+        _ordersStatus[orderHash] = ILimitOrderBook.OrderStatus.Closed;
+
+        uint256 markPrice = _getPrice(order.baseToken);
+        //
+        ILimitOrderBook.LimitOrder memory storedOrder = _orders[orderHash];
+        // LOB_WC: wrong condition
+        require(
+            (storedOrder.base > 0 &&
+                ((order.takeProfitPrice > 0 && order.takeProfitPrice >= markPrice) ||
+                    (order.stopLossPrice > 0 && order.stopLossPrice <= markPrice))) ||
+                (storedOrder.base < 0 &&
+                    ((order.takeProfitPrice > 0 && order.takeProfitPrice <= markPrice) ||
+                        (order.stopLossPrice > 0 && order.stopLossPrice >= markPrice))),
+            "LOB_WC"
+        );
+        bool isBaseToQuote = storedOrder.base > 0 ? true : false;
+        (int256 exchangedPositionSize, int256 exchangedPositionNotional, uint256 fee) = _fillLimitOrder(
+            LimitOrderParams({
+                orderType: storedOrder.orderType,
+                nonce: 0,
+                trader: storedOrder.trader,
+                baseToken: storedOrder.baseToken,
+                isBaseToQuote: isBaseToQuote,
+                isExactInput: isBaseToQuote,
+                amount: storedOrder.base.abs(),
+                oppositeAmountBound: 0,
+                deadline: _blockTimestamp() + 60,
+                triggerPrice: 0,
+                takeProfitPrice: 0,
+                stopLossPrice: 0
+            })
+        );
+
+        emit LimitOrderClosed(
+            order.trader,
+            order.baseToken,
+            orderHash,
+            uint8(order.orderType),
+            sender, // keeper
+            exchangedPositionSize,
+            exchangedPositionNotional,
+            fee
+        );
+    }
+
     //
     // PUBLIC VIEW
     //
@@ -233,10 +293,10 @@ contract LimitOrderBook is
         int256 exchangedPositionNotional;
         if (order.isBaseToQuote) {
             exchangedPositionSize = base.neg256();
-            exchangedPositionNotional = quote.toInt256().add(fee.toInt256());
+            exchangedPositionNotional = quote.toInt256();
         } else {
             exchangedPositionSize = base.toInt256();
-            exchangedPositionNotional = quote.neg256().add(fee.toInt256());
+            exchangedPositionNotional = quote.neg256();
         }
 
         return (exchangedPositionSize, exchangedPositionNotional, fee);
