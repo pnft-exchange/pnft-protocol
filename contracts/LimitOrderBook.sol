@@ -17,6 +17,7 @@ import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/
 import { IClearingHouse } from "./interface/IClearingHouse.sol";
 import { IAccountBalance } from "./interface/IAccountBalance.sol";
 import { IBaseToken } from "./interface/IBaseToken.sol";
+import { DataTypes } from "./types/DataTypes.sol";
 
 contract LimitOrderBook is
     ILimitOrderBook,
@@ -66,10 +67,6 @@ contract LimitOrderBook is
         require(accountBalanceArg.isContract(), "LOB_ABINC");
         accountBalance = accountBalanceArg;
 
-        // LOB_LOFVINC: LimitOrderRewardVault Is Not Contract
-        require(limitOrderRewardVaultArg.isContract(), "LOB_LOFVINC");
-        limitOrderRewardVault = limitOrderRewardVaultArg;
-
         // LOB_MOVMBGT0: MinOrderValue Must Be Greater Than Zero
         require(minOrderValueArg > 0, "LOB_MOVMBGT0");
         minOrderValue = minOrderValueArg;
@@ -96,20 +93,8 @@ contract LimitOrderBook is
         emit MinOrderValueChanged(minOrderValueArg);
     }
 
-    function setLimitOrderRewardVault(address limitOrderRewardVaultArg) external onlyOwner {
-        // LOB_LOFVINC: LimitOrderRewardVault Is Not Contract
-        require(limitOrderRewardVaultArg.isContract(), "LOB_LOFVINC");
-        limitOrderRewardVault = limitOrderRewardVaultArg;
-
-        emit LimitOrderRewardVaultChanged(limitOrderRewardVaultArg);
-    }
-
     /// @inheritdoc ILimitOrderBook
-    function fillLimitOrder(
-        LimitOrder memory order,
-        bytes memory signature,
-        uint80 roundIdWhenTriggered
-    ) external override nonReentrant {
+    function fillLimitOrder(LimitOrderParams memory order, bytes memory signature) external override nonReentrant {
         address sender = _msgSender();
 
         // short term solution: mitigate that attacker can drain LimitOrderRewardVault
@@ -121,14 +106,36 @@ contract LimitOrderBook is
         // LOB_OMBU: Order Must Be Unfilled
         require(_ordersStatus[orderHash] == ILimitOrderBook.OrderStatus.Unfilled, "LOB_OMBU");
 
-        (int256 exchangedPositionSize, int256 exchangedPositionNotional, uint256 fee) = _fillLimitOrder(
-            order,
-            roundIdWhenTriggered
-        );
+        (int256 exchangedPositionSize, int256 exchangedPositionNotional, uint256 fee) = _fillLimitOrder(order);
 
         _ordersStatus[orderHash] = ILimitOrderBook.OrderStatus.Filled;
 
-        ILimitOrderRewardVault(limitOrderRewardVault).disburse(sender, orderHash);
+        //
+        if (
+            order.orderType == ILimitOrderBook.OrderType.LimitOrder &&
+            (order.takeProfitPrice > 0 || order.stopLossPrice > 0)
+        ) {
+            //
+            // order.
+            ILimitOrderBook.LimitOrder memory storedOrder = ILimitOrderBook.LimitOrder({
+                orderType: order.orderType,
+                trader: order.trader,
+                baseToken: order.baseToken,
+                base: exchangedPositionSize,
+                takeProfitPrice: order.takeProfitPrice,
+                stopLossPrice: order.stopLossPrice
+            });
+            _orders[orderHash] = storedOrder;
+        } else if (order.orderType == ILimitOrderBook.OrderType.StopLossOrder) {
+            //
+        } else if (order.orderType == ILimitOrderBook.OrderType.TakeProfitOrder) {
+            //
+        } else if (order.orderType == ILimitOrderBook.OrderType.StopLimitOrder) {
+            //
+        } else {
+            // LOB_NS: not supprted
+            revert("LOB_NS");
+        }
 
         emit LimitOrderFilled(
             order.trader,
@@ -143,7 +150,7 @@ contract LimitOrderBook is
     }
 
     /// @inheritdoc ILimitOrderBook
-    function cancelLimitOrder(LimitOrder memory order) external override {
+    function cancelLimitOrder(LimitOrderParams memory order) external override {
         // LOB_OSMBS: Order's Signer Must Be Sender
         require(_msgSender() == order.trader, "LOB_OSMBS");
 
@@ -190,7 +197,7 @@ contract LimitOrderBook is
     // PUBLIC VIEW
     //
 
-    function getOrderHash(LimitOrder memory order) public view override returns (bytes32) {
+    function getOrderHash(LimitOrderParams memory order) public view override returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(LIMIT_ORDER_TYPEHASH, order)));
     }
 
@@ -202,49 +209,25 @@ contract LimitOrderBook is
     // INTERNAL NON-VIEW
     //
 
-    function _fillLimitOrder(
-        LimitOrder memory order,
-        uint80 roundIdWhenTriggered
-    ) internal returns (int256, int256, uint256) {
-        _verifyTriggerPrice(order, roundIdWhenTriggered);
-
-        int256 oldTakerPositionSize = IAccountBalance(accountBalance).getTakerPositionSize(
-            order.trader,
-            order.baseToken
-        );
+    function _fillLimitOrder(LimitOrderParams memory order) internal returns (int256, int256, uint256) {
+        // _verifyTriggerPrice(order);
 
         (uint256 base, uint256 quote, uint256 fee) = IClearingHouse(clearingHouse).openPositionFor(
             order.trader,
-            IClearingHouse.OpenPositionParams({
+            DataTypes.OpenPositionParams({
                 baseToken: order.baseToken,
                 isBaseToQuote: order.isBaseToQuote,
                 isExactInput: order.isExactInput,
                 amount: order.amount,
                 oppositeAmountBound: order.oppositeAmountBound,
                 deadline: order.deadline,
-                sqrtPriceLimitX96: order.sqrtPriceLimitX96,
-                referralCode: order.referralCode
+                sqrtPriceLimitX96: 0,
+                referralCode: ""
             })
         );
 
         // LOB_OVTS: Order Value Too Small
         require(quote >= minOrderValue, "LOB_OVTS");
-
-        if (order.reduceOnly) {
-            // LOB_ROINS: ReduceOnly Is Not Satisfied
-            require(
-                oldTakerPositionSize != 0 &&
-                    oldTakerPositionSize < 0 != order.isBaseToQuote &&
-                    base <= oldTakerPositionSize.abs(),
-                "LOB_ROINS"
-            );
-
-            // if trader has no position, order will get reverted
-            // if trader has short position, trader can only open a long position
-            // => oldTakerPositionSize < 0 != order.isBaseToQuote => true != false
-            // if trader has long position, trader can only open a short position
-            // => oldTakerPositionSize < 0 != order.isBaseToQuote => false != true
-        }
 
         int256 exchangedPositionSize;
         int256 exchangedPositionNotional;
@@ -263,7 +246,10 @@ contract LimitOrderBook is
     // INTERNAL VIEW
     //
 
-    function _verifySigner(LimitOrder memory order, bytes memory signature) internal view returns (address, bytes32) {
+    function _verifySigner(
+        LimitOrderParams memory order,
+        bytes memory signature
+    ) internal view returns (address, bytes32) {
         bytes32 orderHash = getOrderHash(order);
         address signer = ECDSAUpgradeable.recover(orderHash, signature);
 
@@ -273,58 +259,46 @@ contract LimitOrderBook is
         return (signer, orderHash);
     }
 
-    function _verifyTriggerPrice(LimitOrder memory order, uint80 roundIdWhenTriggered) internal view {
+    function _verifyTriggerPrice(LimitOrderParams memory order) internal view {
         if (order.orderType == ILimitOrderBook.OrderType.LimitOrder) {
             return;
         }
 
-        // NOTE: Chainlink proxy's roundId is always increased
-        // https://docs.chain.link/docs/historical-price-data/
+        // // NOTE: Chainlink proxy's roundId is always increased
+        // // https://docs.chain.link/docs/historical-price-data/
 
-        // LOB_IRI: Invalid RoundId
-        require(order.roundIdWhenCreated > 0 && roundIdWhenTriggered >= order.roundIdWhenCreated, "LOB_IRI");
+        // // LOB_ITP: Invalid Trigger Price
+        // require(order.triggerPrice > 0, "LOB_ITP");
 
-        // LOB_ITP: Invalid Trigger Price
-        require(order.triggerPrice > 0, "LOB_ITP");
+        // // NOTE: we can only support stop/take-profit limit order for markets that use ChainlinkPriceFeed
+        // uint256 triggeredPrice = _getPrice(order.baseToken);
 
-        // NOTE: we can only support stop/take-profit limit order for markets that use ChainlinkPriceFeed
-        uint256 triggeredPrice = _getPriceByRoundId(order.baseToken, roundIdWhenTriggered);
+        // // we need to make sure the price has reached trigger price.
+        // // however, we can only know whether index price has reached trigger price,
+        // // we didn't know whether market price has reached trigger price
 
-        // we need to make sure the price has reached trigger price.
-        // however, we can only know whether index price has reached trigger price,
-        // we didn't know whether market price has reached trigger price
-
-        // rules of advanced order types
-        // https://help.ftx.com/hc/en-us/articles/360031896592-Advanced-Order-Types
-        if (order.orderType == ILimitOrderBook.OrderType.StopLossLimitOrder) {
-            if (order.isBaseToQuote) {
-                // LOB_SSLOTPNM: Sell Stop Limit Order Trigger Price Not Matched
-                require(triggeredPrice <= order.triggerPrice, "LOB_SSLOTPNM");
-            } else {
-                // LOB_BSLOTPNM: Buy Stop Limit Order Trigger Price Not Matched
-                require(triggeredPrice >= order.triggerPrice, "LOB_BSLOTPNM");
-            }
-        } else if (order.orderType == ILimitOrderBook.OrderType.TakeProfitLimitOrder) {
-            if (order.isBaseToQuote) {
-                // LOB_STLOTPNM: Sell Take-profit Limit Order Trigger Price Not Matched
-                require(triggeredPrice >= order.triggerPrice, "LOB_STLOTPNM");
-            } else {
-                // LOB_BTLOTPNM: Buy Take-profit Limit Order Trigger Price Not Matched
-                require(triggeredPrice <= order.triggerPrice, "LOB_BTLOTPNM");
-            }
-        }
+        // // rules of advanced order types
+        // // https://help.ftx.com/hc/en-us/articles/360031896592-Advanced-Order-Types
+        // if (order.orderType == ILimitOrderBook.OrderType.StopLossLimitOrder) {
+        //     if (order.isBaseToQuote) {
+        //         // LOB_SSLOTPNM: Sell Stop Limit Order Trigger Price Not Matched
+        //         require(triggeredPrice <= order.triggerPrice, "LOB_SSLOTPNM");
+        //     } else {
+        //         // LOB_BSLOTPNM: Buy Stop Limit Order Trigger Price Not Matched
+        //         require(triggeredPrice >= order.triggerPrice, "LOB_BSLOTPNM");
+        //     }
+        // } else if (order.orderType == ILimitOrderBook.OrderType.TakeProfitLimitOrder) {
+        //     if (order.isBaseToQuote) {
+        //         // LOB_STLOTPNM: Sell Take-profit Limit Order Trigger Price Not Matched
+        //         require(triggeredPrice >= order.triggerPrice, "LOB_STLOTPNM");
+        //     } else {
+        //         // LOB_BTLOTPNM: Buy Take-profit Limit Order Trigger Price Not Matched
+        //         require(triggeredPrice <= order.triggerPrice, "LOB_BTLOTPNM");
+        //     }
+        // }
     }
 
-    function _getPriceByRoundId(address baseToken, uint80 roundId) internal view returns (uint256) {
-        ChainlinkPriceFeed chainlinkPriceFeed = ChainlinkPriceFeed(IBaseToken(baseToken).getPriceFeed());
-        (uint256 price, ) = chainlinkPriceFeed.getRoundData(roundId);
-        return _formatDecimals(price, chainlinkPriceFeed.decimals(), 18);
-    }
-
-    function _formatDecimals(uint256 price, uint8 fromDecimals, uint8 toDecimals) internal pure returns (uint256) {
-        // LOB_ID: Invalid Decimals
-        require(fromDecimals <= toDecimals, "LOB_ID");
-
-        return price.mul(10 ** (toDecimals.sub(fromDecimals)));
+    function _getPrice(address baseToken) internal view returns (uint256) {
+        return 0;
     }
 }

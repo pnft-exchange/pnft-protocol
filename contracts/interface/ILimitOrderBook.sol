@@ -20,7 +20,7 @@ interface ILimitOrderBook {
     }
 
     /// @param orderType The enum of order type (LimitOrder, StopLossLimitOrder, ...)
-    /// @param salt An unique number for creating orders with the same parameters
+    /// @param nonce An unique number for creating orders with the same parameters
     /// @param trader The address of trader who creates the order (must be signer)
     /// @param baseToken The address of baseToken (vETH, vBTC, ...)
     /// @param isBaseToQuote B2Q (short) if true, otherwise Q2B (long)
@@ -41,7 +41,7 @@ interface ILimitOrderBook {
     // Only available if orderType is StopLossLimitOrder/TakeProfitLimitOrder, otherwise set to 0
     struct LimitOrderParams {
         OrderType orderType;
-        uint256 salt; //created
+        uint256 nonce;
         address trader;
         address baseToken;
         bool isBaseToQuote;
@@ -113,14 +113,13 @@ interface ILimitOrderBook {
 
     /// @param order LimitOrder struct
     /// @param signature The EIP-712 signature of `order` generated from `eth_signTypedData_V4`
-    /// @param roundIdWhenTriggered Chainlink `roundId` when triggerPrice is satisfied
     // Only available if orderType is StopLossLimitOrder/TakeProfitLimitOrder, otherwise set to 0
-    function fillLimitOrder(LimitOrder memory order, bytes memory signature, uint80 roundIdWhenTriggered) external;
+    function fillLimitOrder(LimitOrderParams memory order, bytes memory signature) external;
 
     /// @param order LimitOrder struct
-    function cancelLimitOrder(LimitOrder memory order) external;
+    function cancelLimitOrder(LimitOrderParams memory order) external;
 
     function getOrderStatus(bytes32 orderHash) external view returns (ILimitOrderBook.OrderStatus);
 
-    function getOrderHash(LimitOrder memory order) external view returns (bytes32);
+    function getOrderHash(LimitOrderParams memory order) external view returns (bytes32);
 }
