@@ -90,6 +90,15 @@ contract LimitOrderBook is
         emit ClearingHouseChanged(clearingHouseArg);
     }
 
+    function setFeeOrderValue(uint256 feeOrderValueArg) external onlyOwner {
+        // LOB_MOVMBGT0: MinOrderValue Must Be Greater Than Zero
+        require(feeOrderValueArg > 0, "LOB_MOVMBGT0");
+
+        feeOrderValue = feeOrderValueArg;
+
+        emit FeeOrderValueChanged(feeOrderValueArg);
+    }
+
     function setMinOrderValue(uint256 minOrderValueArg) external onlyOwner {
         // LOB_MOVMBGT0: MinOrderValue Must Be Greater Than Zero
         require(minOrderValueArg > 0, "LOB_MOVMBGT0");
@@ -116,7 +125,10 @@ contract LimitOrderBook is
         // LOB_OMBU: Order Must Be Unfilled
         require(_ordersStatus[orderHash] == ILimitOrderBook.OrderStatus.Unfilled, "LOB_OMBU");
 
-        (int256 exchangedPositionSize, int256 exchangedPositionNotional, uint256 fee) = _fillLimitOrder(order);
+        (int256 exchangedPositionSize, int256 exchangedPositionNotional, uint256 fee) = _fillLimitOrder(
+            _msgSender(),
+            order
+        );
 
         _ordersStatus[orderHash] = ILimitOrderBook.OrderStatus.Filled;
 
@@ -292,11 +304,14 @@ contract LimitOrderBook is
     // INTERNAL NON-VIEW
     //
 
-    function _fillLimitOrder(LimitOrderParams memory order) internal returns (int256, int256, uint256) {
+    function _fillLimitOrder(
+        address msgSender,
+        LimitOrderParams memory order
+    ) internal returns (int256, int256, uint256) {
         _verifyTriggerPrice(order);
 
         (uint256 base, uint256 quote, uint256 fee) = IClearingHouse(clearingHouse).openPositionFor(
-            _msgSender(),
+            msgSender,
             feeOrderValue,
             order.trader,
             DataTypes.OpenPositionParams({

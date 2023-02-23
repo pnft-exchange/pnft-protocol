@@ -67,13 +67,11 @@ interface ILimitOrderBook {
     /// @param clearingHouseArg The new address of clearingHouse
     event ClearingHouseChanged(address indexed clearingHouseArg);
 
-    /// @notice Emitted when limitOrderRewardVault is changed
-    /// @param limitOrderRewardVaultArg The new address of limitOrderRewardVault
-    event LimitOrderRewardVaultChanged(address indexed limitOrderRewardVaultArg);
-
     /// @notice Emitted when minOrderValue is changed
     /// @param minOrderValueArg The minimum limit order value in USD
     event MinOrderValueChanged(uint256 minOrderValueArg);
+
+    event FeeOrderValueChanged(uint256 feeOrderValueArg);
 
     /// @notice Emitted when the limit order is filled
     /// @param trader The address of trader who created the limit order
