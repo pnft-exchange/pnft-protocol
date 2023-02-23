@@ -11,7 +11,6 @@ import { SafeMathUpgradeable } from "@openzeppelin/contracts-upgradeable/math/Sa
 import { PerpMath } from "./lib/PerpMath.sol";
 import { PerpSafeCast } from "./lib/PerpSafeCast.sol";
 import { ILimitOrderBook } from "./interface/ILimitOrderBook.sol";
-import { ILimitOrderRewardVault } from "./interface/ILimitOrderRewardVault.sol";
 import { LimitOrderBookStorageV1 } from "./storage/LimitOrderBookStorage.sol";
 import { OwnerPausable } from "./base/OwnerPausable.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
