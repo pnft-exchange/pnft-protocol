@@ -11,7 +11,6 @@ import {
     VPool,
     InsuranceFund,
     MarketRegistry,
-    OrderBook,
     QuoteToken,
     TestAccountBalance,
     TestClearingHouse,
