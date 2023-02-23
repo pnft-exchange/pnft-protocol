@@ -92,7 +92,8 @@ interface ILimitOrderBook {
         address keeper,
         int256 exchangedPositionSize,
         int256 exchangedPositionNotional,
-        uint256 fee
+        uint256 fee,
+        uint256 keeperFee
     );
 
     event LimitOrderClosed(
@@ -103,7 +104,8 @@ interface ILimitOrderBook {
         address keeper,
         int256 exchangedPositionSize,
         int256 exchangedPositionNotional,
-        uint256 fee
+        uint256 fee,
+        uint256 keeperFee
     );
 
     /// @notice Emitted when the limit order is cancelled

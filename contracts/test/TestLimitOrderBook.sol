@@ -16,6 +16,8 @@ contract TestLimitOrderBook {
         // NOTE: here we only care about whether a contract can call `ClearingHouse.openPositionFor()` for a trader
         // for the actual `fillLimitOrder()` logic, see `perp-curie-limit-order-contract` repo
         IClearingHouse(_clearingHouse).openPositionFor(
+            msg.sender,
+            0,
             trader,
             DataTypes.OpenPositionParams({
                 baseToken: params.baseToken,

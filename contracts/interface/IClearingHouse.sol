@@ -82,6 +82,8 @@ interface IClearingHouse {
     /// @param referralCode The referral code by partners
     event ReferredPositionChanged(bytes32 indexed referralCode);
 
+    event RealizedPnlTransfer(address indexed from, address indexed to, uint256 amount);
+
     /// @notice Emitted when maker's liquidity of a order changed
     /// @param maker The one who provide liquidity
     /// @param baseToken The address of virtual base token(ETH, BTC, etc...)
@@ -218,6 +220,8 @@ interface IClearingHouse {
     /// @return quote The amount of quoteToken the taker got or spent
     /// @return fee The trading fee
     function openPositionFor(
+        address keeper,
+        uint256 keeperFee,
         address trader,
         DataTypes.OpenPositionParams memory params
     ) external returns (uint256 base, uint256 quote, uint256 fee);

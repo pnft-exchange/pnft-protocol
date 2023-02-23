@@ -11,6 +11,7 @@ import { SafeMathUpgradeable } from "@openzeppelin/contracts-upgradeable/math/Sa
 import { PerpMath } from "./lib/PerpMath.sol";
 import { PerpSafeCast } from "./lib/PerpSafeCast.sol";
 import { ILimitOrderBook } from "./interface/ILimitOrderBook.sol";
+import { IDelegateApproval } from "./interface/IDelegateApproval.sol";
 import { LimitOrderBookStorageV1 } from "./storage/LimitOrderBookStorage.sol";
 import { OwnerPausable } from "./base/OwnerPausable.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -22,6 +23,7 @@ import { DataTypes } from "./types/DataTypes.sol";
 
 contract LimitOrderBook is
     ILimitOrderBook,
+    IDelegateApproval,
     BlockContext,
     ReentrancyGuardUpgradeable,
     OwnerPausable,
@@ -52,7 +54,8 @@ contract LimitOrderBook is
         string memory name,
         string memory version,
         address clearingHouseArg,
-        uint256 minOrderValueArg
+        uint256 minOrderValueArg,
+        uint256 feeOrderValueArg
     ) external initializer {
         __ReentrancyGuard_init();
         __OwnerPausable_init();
@@ -70,6 +73,8 @@ contract LimitOrderBook is
         // LOB_MOVMBGT0: MinOrderValue Must Be Greater Than Zero
         require(minOrderValueArg > 0, "LOB_MOVMBGT0");
         minOrderValue = minOrderValueArg;
+
+        feeOrderValue = feeOrderValueArg;
     }
 
     function setClearingHouse(address clearingHouseArg) external onlyOwner {
@@ -91,6 +96,11 @@ contract LimitOrderBook is
         minOrderValue = minOrderValueArg;
 
         emit MinOrderValueChanged(minOrderValueArg);
+    }
+
+    /// @inheritdoc IDelegateApproval
+    function canOpenPositionFor(address trader, address delegate) external view override returns (bool) {
+        return true;
     }
 
     /// @inheritdoc ILimitOrderBook
@@ -145,7 +155,8 @@ contract LimitOrderBook is
             sender, // keeper
             exchangedPositionSize,
             exchangedPositionNotional,
-            fee
+            fee,
+            feeOrderValue
         );
     }
 
@@ -225,6 +236,8 @@ contract LimitOrderBook is
         );
         bool isBaseToQuote = storedOrder.base > 0 ? true : false;
         (uint256 base, uint256 quote, uint256 fee) = IClearingHouse(clearingHouse).openPositionFor(
+            _msgSender(),
+            feeOrderValue,
             order.trader,
             DataTypes.OpenPositionParams({
                 baseToken: order.baseToken,
@@ -258,7 +271,8 @@ contract LimitOrderBook is
             sender, // keeper
             exchangedPositionSize,
             exchangedPositionNotional,
-            fee
+            fee,
+            feeOrderValue
         );
     }
 
@@ -282,6 +296,8 @@ contract LimitOrderBook is
         _verifyTriggerPrice(order);
 
         (uint256 base, uint256 quote, uint256 fee) = IClearingHouse(clearingHouse).openPositionFor(
+            _msgSender(),
+            feeOrderValue,
             order.trader,
             DataTypes.OpenPositionParams({
                 baseToken: order.baseToken,
