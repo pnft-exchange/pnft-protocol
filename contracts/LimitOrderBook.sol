@@ -16,6 +16,7 @@ import { OwnerPausable } from "./base/OwnerPausable.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import { IClearingHouse } from "./interface/IClearingHouse.sol";
 import { IAccountBalance } from "./interface/IAccountBalance.sol";
+import { IVPool } from "./interface/IVPool.sol";
 import { IBaseToken } from "./interface/IBaseToken.sol";
 import { DataTypes } from "./types/DataTypes.sol";
 
@@ -51,7 +52,6 @@ contract LimitOrderBook is
         string memory name,
         string memory version,
         address clearingHouseArg,
-        address limitOrderRewardVaultArg,
         uint256 minOrderValueArg
     ) external initializer {
         __ReentrancyGuard_init();
@@ -359,6 +359,6 @@ contract LimitOrderBook is
     }
 
     function _getPrice(address baseToken) internal view returns (uint256) {
-        return 0;
+        return IAccountBalance(accountBalance).getReferencePrice(baseToken);
     }
 }
