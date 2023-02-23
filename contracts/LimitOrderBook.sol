@@ -333,38 +333,56 @@ contract LimitOrderBook is
             return;
         }
 
-        // // NOTE: Chainlink proxy's roundId is always increased
-        // // https://docs.chain.link/docs/historical-price-data/
+        // LOB_ITP: Invalid Trigger Price
+        require(order.triggerPrice > 0, "LOB_ITP");
 
-        // // LOB_ITP: Invalid Trigger Price
-        // require(order.triggerPrice > 0, "LOB_ITP");
+        uint256 triggeredPrice = _getPrice(order.baseToken);
 
-        // // NOTE: we can only support stop/take-profit limit order for markets that use ChainlinkPriceFeed
-        // uint256 triggeredPrice = _getPrice(order.baseToken);
+        // we need to make sure the price has reached trigger price.
+        // however, we can only know whether index price has reached trigger price,
+        // we didn't know whether market price has reached trigger price
 
-        // // we need to make sure the price has reached trigger price.
-        // // however, we can only know whether index price has reached trigger price,
-        // // we didn't know whether market price has reached trigger price
-
-        // // rules of advanced order types
-        // // https://help.ftx.com/hc/en-us/articles/360031896592-Advanced-Order-Types
-        // if (order.orderType == ILimitOrderBook.OrderType.StopLossLimitOrder) {
-        //     if (order.isBaseToQuote) {
-        //         // LOB_SSLOTPNM: Sell Stop Limit Order Trigger Price Not Matched
-        //         require(triggeredPrice <= order.triggerPrice, "LOB_SSLOTPNM");
-        //     } else {
-        //         // LOB_BSLOTPNM: Buy Stop Limit Order Trigger Price Not Matched
-        //         require(triggeredPrice >= order.triggerPrice, "LOB_BSLOTPNM");
-        //     }
-        // } else if (order.orderType == ILimitOrderBook.OrderType.TakeProfitLimitOrder) {
-        //     if (order.isBaseToQuote) {
-        //         // LOB_STLOTPNM: Sell Take-profit Limit Order Trigger Price Not Matched
-        //         require(triggeredPrice >= order.triggerPrice, "LOB_STLOTPNM");
-        //     } else {
-        //         // LOB_BTLOTPNM: Buy Take-profit Limit Order Trigger Price Not Matched
-        //         require(triggeredPrice <= order.triggerPrice, "LOB_BTLOTPNM");
-        //     }
-        // }
+        if (order.orderType == ILimitOrderBook.OrderType.LimitOrder) {
+            if (order.isBaseToQuote) {
+                //short: triggeredPrice >=  order.triggerPrice
+                // LOB_SLOTPNM: Sell Limit Order Trigger Price Not Matched
+                require(triggeredPrice >= order.triggerPrice, "LOB_SLOTPNM");
+            } else {
+                //long: triggeredPrice  <=  order.triggerPrice
+                // LOB_BLOTPNM: Buy Limit Order Trigger Price Not Matched
+                require(triggeredPrice <= order.triggerPrice, "LOB_BLOTPNM");
+            }
+        } else if (order.orderType == ILimitOrderBook.OrderType.StopLossOrder) {
+            if (order.isBaseToQuote) {
+                //short : triggeredPrice >= order.triggerPrice
+                // LOB_SSLOTPNM: Sell Stop Loss Order Trigger Price Not Matched
+                require(triggeredPrice >= order.triggerPrice, "LOB_SSLOTPNM");
+            } else {
+                //long : triggeredPrice <= order.triggerPrice
+                // LOB_BSLOTPNM: Buy Stop Limit Order Trigger Price Not Matched
+                require(triggeredPrice <= order.triggerPrice, "LOB_BSLOTPNM");
+            }
+        } else if (order.orderType == ILimitOrderBook.OrderType.TakeProfitOrder) {
+            if (order.isBaseToQuote) {
+                //short : triggeredPrice <= order.triggerPrice
+                // LOB_STPOTPNM: Sell Take Profit Order Trigger Price Not Matched
+                require(triggeredPrice <= order.triggerPrice, "LOB_STPOTPNM");
+            } else {
+                //long : triggeredPrice >= order.triggerPrice
+                // LOB_BTPOTPNM: Buy Take Profit Order Trigger Price Not Matched
+                require(triggeredPrice >= order.triggerPrice, "LOB_BTPOTPNM");
+            }
+        } else if (order.orderType == ILimitOrderBook.OrderType.StopLimitOrder) {
+            if (order.isBaseToQuote) {
+                //short : triggeredPrice <= order.triggerPrice
+                // LOB_SSLIOTPNM: Sell Stop limit Order Trigger Price Not Matched
+                require(triggeredPrice <= order.triggerPrice, "LOB_SSLIOTPNM");
+            } else {
+                //long : triggeredPrice >= order.triggerPrice
+                // LOB_BSLIOTPNM: Buy Stop Limit Order Trigger Price Not Matched
+                require(triggeredPrice >= order.triggerPrice, "LOB_BSLIOTPNM");
+            }
+        }
     }
 
     function _getPrice(address baseToken) internal view returns (uint256) {
