@@ -137,11 +137,11 @@ contract LimitOrderBook is
 
         //
         if (
-            order.orderType == ILimitOrderBook.OrderType.LimitOrder &&
+            (order.orderType == ILimitOrderBook.OrderType.LimitOrder ||
+                order.orderType == ILimitOrderBook.OrderType.StopLimitOrder) &&
             (order.takeProfitPrice > 0 || order.stopLossPrice > 0)
         ) {
             //
-            // order.
             ILimitOrderBook.LimitOrder memory storedOrder = ILimitOrderBook.LimitOrder({
                 multiplier: order.multiplier,
                 orderType: order.orderType,
@@ -152,15 +152,6 @@ contract LimitOrderBook is
                 stopLossPrice: order.stopLossPrice
             });
             _orders[orderHash] = storedOrder;
-        } else if (order.orderType == ILimitOrderBook.OrderType.StopLossOrder) {
-            //
-        } else if (order.orderType == ILimitOrderBook.OrderType.TakeProfitOrder) {
-            //
-        } else if (order.orderType == ILimitOrderBook.OrderType.StopLimitOrder) {
-            //
-        } else {
-            // LOB_NS: not supprted
-            revert("LOB_NS");
         }
 
         emit LimitOrderFilled(
