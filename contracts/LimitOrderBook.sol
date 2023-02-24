@@ -120,6 +120,9 @@ contract LimitOrderBook is
         // LOB_SMBE: Sender Must Be EOA
         require(!sender.isContract(), "LOB_SMBE");
 
+        // check multiplier
+        _checkMultiplier(order.baseToken, order.multiplier);
+
         (, bytes32 orderHash) = _verifySigner(order, signature);
 
         // LOB_OMBU: Order Must Be Unfilled
@@ -140,6 +143,7 @@ contract LimitOrderBook is
             //
             // order.
             ILimitOrderBook.LimitOrder memory storedOrder = ILimitOrderBook.LimitOrder({
+                multiplier: order.multiplier,
                 orderType: order.orderType,
                 trader: order.trader,
                 baseToken: order.baseToken,
@@ -223,6 +227,9 @@ contract LimitOrderBook is
         // short term solution: mitigate that attacker can drain LimitOrderRewardVault
         // LOB_SMBE: Sender Must Be EOA
         require(!sender.isContract(), "LOB_SMBE");
+
+        // check multiplier
+        _checkMultiplier(order.baseToken, order.multiplier);
 
         // we didn't require `signature` as input like fillLimitOrder(),
         // so trader can actually cancel an order that is not existed
@@ -418,5 +425,13 @@ contract LimitOrderBook is
 
     function _getPrice(address baseToken) internal view returns (uint256) {
         return IAccountBalance(accountBalance).getReferencePrice(baseToken);
+    }
+
+    function _checkMultiplier(address baseToken, uint256 multiplier) internal view {
+        (uint256 longMultiplier, uint256 shortMultiplier) = IAccountBalance(accountBalance).getMarketMultiplier(
+            baseToken
+        );
+        // LOB_NMM: not matched multiplier
+        require(multiplier == (longMultiplier + shortMultiplier), "LOB_NMM");
     }
 }
