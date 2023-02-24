@@ -6,8 +6,7 @@ interface ILimitOrderBook {
     // Do NOT change the order of enum values because it will break backwards compatibility
     enum OrderType {
         LimitOrder,
-        StopLossOrder,
-        TakeProfitOrder,
+        TPSLOrder,
         StopLimitOrder
     }
 

@@ -381,25 +381,32 @@ contract LimitOrderBook is
                 // LOB_BLOTPNM: Buy Limit Order Trigger Price Not Matched
                 require(triggeredPrice <= order.triggerPrice, "LOB_BLOTPNM");
             }
-        } else if (order.orderType == ILimitOrderBook.OrderType.StopLossOrder) {
+        } else if (order.orderType == ILimitOrderBook.OrderType.TPSLOrder) {
             if (order.isBaseToQuote) {
-                //short : triggeredPrice >= order.triggerPrice
-                // LOB_SSLOTPNM: Sell Stop Loss Order Trigger Price Not Matched
-                require(triggeredPrice >= order.triggerPrice, "LOB_SSLOTPNM");
+                // old long
+                // stoploss        long        takeprofit
+                //old long => new short : triggeredPrice <= order.stoploss || triggeredPrice >= order.takeprofit
+                if (
+                    (order.stopLossPrice > 0 && triggeredPrice <= order.stopLossPrice) ||
+                    (order.takeProfitPrice > 0 && triggeredPrice >= order.takeProfitPrice)
+                ) {
+                    //trigger order
+                } else {
+                    // LOB_SSLOTPNM: TPSL Not Matched
+                    revert("LOB_TPSLNM");
+                }
             } else {
-                //long : triggeredPrice <= order.triggerPrice
-                // LOB_BSLOTPNM: Buy Stop Limit Order Trigger Price Not Matched
-                require(triggeredPrice <= order.triggerPrice, "LOB_BSLOTPNM");
-            }
-        } else if (order.orderType == ILimitOrderBook.OrderType.TakeProfitOrder) {
-            if (order.isBaseToQuote) {
-                //short : triggeredPrice <= order.triggerPrice
-                // LOB_STPOTPNM: Sell Take Profit Order Trigger Price Not Matched
-                require(triggeredPrice <= order.triggerPrice, "LOB_STPOTPNM");
-            } else {
-                //long : triggeredPrice >= order.triggerPrice
-                // LOB_BTPOTPNM: Buy Take Profit Order Trigger Price Not Matched
-                require(triggeredPrice >= order.triggerPrice, "LOB_BTPOTPNM");
+                // old short
+                // takeprofit        short        stoploss
+                if (
+                    (order.stopLossPrice > 0 && triggeredPrice >= order.stopLossPrice) ||
+                    (order.takeProfitPrice > 0 && triggeredPrice <= order.takeProfitPrice)
+                ) {
+                    //trigger order
+                } else {
+                    // LOB_SSLOTPNM: TPSL Not Matched
+                    revert("LOB_TPSLNM");
+                }
             }
         } else if (order.orderType == ILimitOrderBook.OrderType.StopLimitOrder) {
             if (order.isBaseToQuote) {

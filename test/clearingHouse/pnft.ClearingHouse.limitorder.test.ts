@@ -99,7 +99,7 @@ describe("ClearingHouse random trade liquidity repeg close", () => {
             deadline: ethers.constants.MaxUint256,
         })
 
-        await limitOrderBook.connect(liquidator).fillLimitOrder({
+        await limitOrderBook.connect(trader1).cancelLimitOrder({
             multiplier: 0,
             orderType: 0,
             nonce: 0,
@@ -113,7 +113,7 @@ describe("ClearingHouse random trade liquidity repeg close", () => {
             triggerPrice: parseUnits(initPrice, 18),
             takeProfitPrice: parseUnits(initPrice, 18),
             stopLossPrice: parseUnits(initPrice, 18),
-        }, "")
+        })
 
     })
 
