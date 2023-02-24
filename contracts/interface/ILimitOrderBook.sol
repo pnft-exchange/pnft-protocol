@@ -40,6 +40,7 @@ interface ILimitOrderBook {
     /// @param triggerPrice The trigger price of the limit order
     // Only available if orderType is StopLossLimitOrder/TakeProfitLimitOrder, otherwise set to 0
     struct LimitOrderParams {
+        uint256 multiplier;
         OrderType orderType;
         uint256 nonce;
         address trader;
@@ -55,6 +56,7 @@ interface ILimitOrderBook {
     }
 
     struct LimitOrder {
+        uint256 multiplier;
         OrderType orderType;
         address trader;
         address baseToken;
