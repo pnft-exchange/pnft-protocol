@@ -1,34 +1,20 @@
 import { MockContract } from "@eth-optimism/smock"
-import { expect } from "chai"
-import { BigNumber, ContractReceipt } from "ethers"
-import { formatEther, formatUnits, parseEther, parseUnits } from "ethers/lib/utils"
+import { formatEther, parseEther, parseUnits } from "ethers/lib/utils"
 import { ethers, waffle } from "hardhat"
-import { format } from "path"
 import {
-    AccountBalance,
     BaseToken,
-    ClearingHouseConfig,
-    VPool,
-    InsuranceFund,
+    ClearingHouseConfig, InsuranceFund,
     MarketRegistry,
     QuoteToken,
     TestAccountBalance,
     TestClearingHouse,
     TestERC20,
     UniswapV3Pool,
-    Vault,
+    Vault, VPool
 } from "../../typechain"
-import {
-    b2qExactInput,
-    findLiquidityChangedEvents,
-    findPnlRealizedEvents,
-    q2bExactOutput,
-} from "../helper/clearingHouseHelper"
 import { initMarket } from "../helper/marketHelper"
-import { IGNORABLE_DUST, priceToTick } from "../helper/number"
 import { deposit } from "../helper/token"
 import { forwardBothTimestamps } from "../shared/time"
-import { filterLogs } from "../shared/utilities"
 import { ClearingHouseFixture, createClearingHouseFixture } from "./fixtures"
 
 describe("ClearingHouse multiplier", () => {
@@ -86,19 +72,28 @@ describe("ClearingHouse multiplier", () => {
     })
 
     it("repeg up", async () => {
+        await forwardBothTimestamps(clearingHouse, 100)
+
         // maker add liquidity
         await clearingHouse.connect(maker).addLiquidity({
             baseToken: baseToken.address,
             liquidity: parseEther('10000'),
             deadline: ethers.constants.MaxUint256,
         })
+
+        mockedNFTPriceFeed.smocked.getPrice.will.return.with(async () => {
+            return parseUnits("120", 18)
+        })
+
+        await forwardBothTimestamps(clearingHouse, 100)
+
         {
             await clearingHouse.connect(trader1).openPosition({
                 baseToken: baseToken.address,
                 isBaseToQuote: true,
                 isExactInput: true,
                 oppositeAmountBound: 0,
-                amount: parseEther("9"),
+                amount: parseEther("10"),
                 sqrtPriceLimitX96: 0,
                 deadline: ethers.constants.MaxUint256,
                 referralCode: ethers.constants.HashZero,
@@ -117,15 +112,31 @@ describe("ClearingHouse multiplier", () => {
             })
         }
 
-        mockedNFTPriceFeed.smocked.getPrice.will.return.with(async () => {
-            return parseUnits("120", 18)
-        })
+        {
+            let unrealizedPnlTrade1 = (await accountBalance.getPnlAndPendingFee(trader1.address))[1]
+            let unrealizedPnlTrade2 = (await accountBalance.getPnlAndPendingFee(trader2.address))[1]
+            console.log(
+                'before repeg unrealizedPnl',
+                formatEther(unrealizedPnlTrade1),
+                formatEther(unrealizedPnlTrade2),
+            )
+        }
+
+        await forwardBothTimestamps(clearingHouse, 100)
 
         console.log("before repeg");
-        await vPool.connect(maker).isOverPriceSpread(baseToken.address);
         await clearingHouse.connect(maker).repeg(baseToken.address);
         console.log("after repeg");
-        await vPool.connect(maker).isOverPriceSpread(baseToken.address);
+
+        {
+            let unrealizedPnlTrade1 = (await accountBalance.getPnlAndPendingFee(trader1.address))[1]
+            let unrealizedPnlTrade2 = (await accountBalance.getPnlAndPendingFee(trader2.address))[1]
+            console.log(
+                'after repeg unrealizedPnl',
+                formatEther(unrealizedPnlTrade1),
+                formatEther(unrealizedPnlTrade2),
+            )
+        }
 
         await clearingHouse.connect(trader1).closePosition({
             baseToken: baseToken.address,
@@ -142,18 +153,6 @@ describe("ClearingHouse multiplier", () => {
             deadline: ethers.constants.MaxUint256,
             referralCode: ethers.constants.HashZero,
         })
-        {
-            let size1 = (await accountBalance.getTotalPositionSize(trader1.address, baseToken.address))
-            console.log(
-                'getTotalPositionSize1',
-                formatEther(size1),
-            )
-            let size2 = (await accountBalance.getTotalPositionSize(trader2.address, baseToken.address))
-            console.log(
-                'getTotalPositionSize2',
-                formatEther(size2),
-            )
-        }
 
         let owedRealizedPnlPlatformFund = (await accountBalance.getPnlAndPendingFee(platformFund.address))[0]
         let owedRealizedPnlInsuranceFund = (await accountBalance.getPnlAndPendingFee(insuranceFund.address))[0]
