@@ -385,7 +385,6 @@ contract LimitOrderBook is
             if (order.isBaseToQuote) {
                 // old long
                 // stoploss        long        takeprofit
-                //old long => new short : triggeredPrice <= order.stoploss || triggeredPrice >= order.takeprofit
                 if (
                     (order.stopLossPrice > 0 && triggeredPrice <= order.stopLossPrice) ||
                     (order.takeProfitPrice > 0 && triggeredPrice >= order.takeProfitPrice)
