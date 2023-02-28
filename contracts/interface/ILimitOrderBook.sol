@@ -124,9 +124,10 @@ interface ILimitOrderBook {
     );
 
     /// @param order LimitOrder struct
-    /// @param signature The EIP-712 signature of `order` generated from `eth_signTypedData_V4`
+    // / @param signature The EIP-712 signature of `order` generated from `eth_signTypedData_V4`
     // Only available if orderType is StopLossLimitOrder/TakeProfitLimitOrder, otherwise set to 0
-    function fillLimitOrder(LimitOrderParams memory order, bytes memory signature) external;
+    // function fillLimitOrder(LimitOrderParams memory order, bytes memory signature) external;
+    function fillLimitOrder(LimitOrderParams memory order) external;
 
     /// @param order LimitOrder struct
     function cancelLimitOrder(LimitOrderParams memory order) external;

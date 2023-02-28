@@ -20,6 +20,7 @@ import { IAccountBalance } from "./interface/IAccountBalance.sol";
 import { IVPool } from "./interface/IVPool.sol";
 import { IBaseToken } from "./interface/IBaseToken.sol";
 import { DataTypes } from "./types/DataTypes.sol";
+import "hardhat/console.sol";
 
 contract LimitOrderBook is
     ILimitOrderBook,
@@ -112,8 +113,8 @@ contract LimitOrderBook is
         return true;
     }
 
-    /// @inheritdoc ILimitOrderBook
-    function fillLimitOrder(LimitOrderParams memory order, bytes memory signature) external override nonReentrant {
+    // function fillLimitOrder(LimitOrderParams memory order, bytes memory signature) external override nonReentrant {
+    function fillLimitOrder(LimitOrderParams memory order) external override nonReentrant {
         address sender = _msgSender();
 
         // short term solution: mitigate that attacker can drain LimitOrderRewardVault
@@ -121,9 +122,10 @@ contract LimitOrderBook is
         require(!sender.isContract(), "LOB_SMBE");
 
         // check multiplier
-        _checkMultiplier(order.baseToken, order.multiplier);
+        // _checkMultiplier(order.baseToken, order.multiplier);
 
-        (, bytes32 orderHash) = _verifySigner(order, signature);
+        bytes32 orderHash = getOrderHash(order);
+        // (, bytes32 orderHash) = _verifySigner(order, signature);
 
         // LOB_OMBU: Order Must Be Unfilled
         require(_ordersStatus[orderHash] == ILimitOrderBook.OrderStatus.Unfilled, "LOB_OMBU");
@@ -220,7 +222,7 @@ contract LimitOrderBook is
         require(!sender.isContract(), "LOB_SMBE");
 
         // check multiplier
-        _checkMultiplier(order.baseToken, order.multiplier);
+        // _checkMultiplier(order.baseToken, order.multiplier);
 
         // we didn't require `signature` as input like fillLimitOrder(),
         // so trader can actually cancel an order that is not existed
@@ -235,13 +237,17 @@ contract LimitOrderBook is
         //
         ILimitOrderBook.LimitOrder memory storedOrder = _orders[orderHash];
         // LOB_WC: wrong condition
+        console.logInt(storedOrder.base);
+        console.log(order.takeProfitPrice);
+        console.log(order.stopLossPrice);
+        console.log(markPrice);
         require(
             (storedOrder.base > 0 &&
-                ((order.takeProfitPrice > 0 && order.takeProfitPrice >= markPrice) ||
-                    (order.stopLossPrice > 0 && order.stopLossPrice <= markPrice))) ||
+                ((order.takeProfitPrice > 0 && markPrice >= order.takeProfitPrice) ||
+                    (order.stopLossPrice > 0 && markPrice <= order.stopLossPrice))) ||
                 (storedOrder.base < 0 &&
-                    ((order.takeProfitPrice > 0 && order.takeProfitPrice <= markPrice) ||
-                        (order.stopLossPrice > 0 && order.stopLossPrice >= markPrice))),
+                    ((order.takeProfitPrice > 0 && markPrice <= order.takeProfitPrice) ||
+                        (order.stopLossPrice > 0 && markPrice >= order.stopLossPrice))),
             "LOB_WC"
         );
         bool isBaseToQuote = storedOrder.base > 0 ? true : false;

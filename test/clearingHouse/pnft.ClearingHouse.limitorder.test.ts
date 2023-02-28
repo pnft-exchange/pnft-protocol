@@ -83,7 +83,7 @@ describe("ClearingHouse random trade liquidity repeg close", () => {
             deadline: ethers.constants.MaxUint256,
         })
 
-        await limitOrderBook.connect(trader1).cancelLimitOrder({
+        await limitOrderBook.connect(liquidator).fillLimitOrder({
             multiplier: 0,
             orderType: 0,
             nonce: 0,
@@ -95,9 +95,43 @@ describe("ClearingHouse random trade liquidity repeg close", () => {
             oppositeAmountBound: 0,
             deadline: ethers.constants.MaxUint256,
             triggerPrice: parseUnits(initPrice, 18),
-            takeProfitPrice: parseUnits(initPrice, 18),
-            stopLossPrice: parseUnits(initPrice, 18),
+            takeProfitPrice: parseUnits("1.01", 18),
+            stopLossPrice: parseUnits("0.99", 18),
         })
+
+        //take profit || stoploss
+
+        await limitOrderBook.connect(liquidator).closeLimitOrder({
+            multiplier: 0,
+            orderType: 0,
+            nonce: 0,
+            trader: trader1.address,
+            baseToken: baseToken.address,
+            isBaseToQuote: false,
+            isExactInput: true,
+            amount: parseEther('10'),
+            oppositeAmountBound: 0,
+            deadline: ethers.constants.MaxUint256,
+            triggerPrice: parseUnits(initPrice, 18),
+            takeProfitPrice: parseUnits("1.01", 18),
+            stopLossPrice: parseUnits("0.99", 18),
+        })
+
+        // await limitOrderBook.connect(trader1).cancelLimitOrder({
+        //     multiplier: 0,
+        //     orderType: 0,
+        //     nonce: 0,
+        //     trader: trader1.address,
+        //     baseToken: baseToken.address,
+        //     isBaseToQuote: false,
+        //     isExactInput: true,
+        //     amount: parseEther('10'),
+        //     oppositeAmountBound: 0,
+        //     deadline: ethers.constants.MaxUint256,
+        //     triggerPrice: parseUnits(initPrice, 18),
+        //     takeProfitPrice: parseUnits(initPrice, 18),
+        //     stopLossPrice: parseUnits(initPrice, 18),
+        // })
 
     })
 

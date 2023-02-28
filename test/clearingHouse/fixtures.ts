@@ -291,6 +291,8 @@ export function createClearingHouseFixture(
         const limitOrderBook = await limitOrderBookFactory.deploy()
         await limitOrderBook.initialize("lo", "1.0", clearingHouse.address, 1, 0)
 
+        await clearingHouse.setDelegateApproval(limitOrderBook.address)
+
         return {
             clearingHouse,
             accountBalance,
