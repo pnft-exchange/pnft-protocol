@@ -17,7 +17,7 @@ Anyone in pNFT community can take ownership of the platform and help the platfor
 
 ### 4. Trust❤️‍🔥
 
-"Trust the code, don't trust the devs" 
+"Trust the code, don't trust the team" 
 
 Humans, even the most skilled and trustworthy ones can make mistakes
 
