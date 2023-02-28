@@ -355,7 +355,7 @@ contract LimitOrderBook is
     ) internal view returns (address, bytes32) {
         bytes32 orderHash = getOrderHash(order);
         // console.logBytes(abi.encode(orderHash));
-        address signer = ECDSAUpgradeable.recover(ECDSAUpgradeable.toEthSignedMessageHash(orderHash), signature);
+        address signer = ECDSAUpgradeable.recover(orderHash, signature);
 
         // LOB_SINT: Signer Is Not Trader
         require(signer == order.trader, "LOB_SINT");
