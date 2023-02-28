@@ -113,8 +113,7 @@ contract LimitOrderBook is
         return true;
     }
 
-    // function fillLimitOrder(LimitOrderParams memory order, bytes memory signature) external override nonReentrant {
-    function fillLimitOrder(LimitOrderParams memory order) external override nonReentrant {
+    function fillLimitOrder(LimitOrderParams memory order, bytes memory signature) external override nonReentrant {
         address sender = _msgSender();
 
         // short term solution: mitigate that attacker can drain LimitOrderRewardVault
@@ -123,9 +122,7 @@ contract LimitOrderBook is
 
         // check multiplier
         // _checkMultiplier(order.baseToken, order.multiplier);
-
-        bytes32 orderHash = getOrderHash(order);
-        // (, bytes32 orderHash) = _verifySigner(order, signature);
+        (, bytes32 orderHash) = _verifySigner(order, signature);
 
         // LOB_OMBU: Order Must Be Unfilled
         require(_ordersStatus[orderHash] == ILimitOrderBook.OrderStatus.Unfilled, "LOB_OMBU");
@@ -355,7 +352,8 @@ contract LimitOrderBook is
         bytes memory signature
     ) internal view returns (address, bytes32) {
         bytes32 orderHash = getOrderHash(order);
-        address signer = ECDSAUpgradeable.recover(orderHash, signature);
+        // console.logBytes(abi.encode(orderHash));
+        address signer = ECDSAUpgradeable.recover(ECDSAUpgradeable.toEthSignedMessageHash(orderHash), signature);
 
         // LOB_SINT: Signer Is Not Trader
         require(signer == order.trader, "LOB_SINT");
