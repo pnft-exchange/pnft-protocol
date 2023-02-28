@@ -83,21 +83,67 @@ describe("ClearingHouse random trade liquidity repeg close", () => {
             deadline: ethers.constants.MaxUint256,
         })
 
-        await limitOrderBook.connect(liquidator).fillLimitOrder({
-            multiplier: 0,
-            orderType: 0,
-            nonce: 0,
+        let fillOrderParams = {
+            multiplier: '0',
+            orderType: '0',
+            nonce: '0',
             trader: trader1.address,
             baseToken: baseToken.address,
             isBaseToQuote: false,
             isExactInput: true,
-            amount: parseEther('10'),
-            oppositeAmountBound: 0,
-            deadline: ethers.constants.MaxUint256,
-            triggerPrice: parseUnits(initPrice, 18),
-            takeProfitPrice: parseUnits("1.01", 18),
-            stopLossPrice: parseUnits("0.99", 18),
-        })
+            amount: parseEther('10').toString(),
+            oppositeAmountBound: parseUnits('0', 0).toString(),
+            deadline: ethers.constants.MaxUint256.toString(),
+            triggerPrice: parseUnits(initPrice, 18).toString(),
+            takeProfitPrice: parseUnits("1.01", 18).toString(),
+            stopLossPrice: parseUnits("0.99", 18).toString(),
+        }
+
+        const { chainId } = await ethers.provider.getNetwork()
+
+        const typedData = {
+            types: {
+                EIP712Domain: [
+                    { name: "name", type: "string" },
+                    { name: "version", type: "string" },
+                    { name: "chainId", type: "uint256" },
+                    { name: "verifyingContract", type: "address" },
+                ],
+                LimitOrderParams: [
+                    { name: "multiplier", type: "uint256" },
+                    { name: "orderType", type: "uint8" },
+                    { name: "nonce", type: "uint256" },
+                    { name: "trader", type: "address" },
+                    { name: "baseToken", type: "address" },
+                    { name: "isBaseToQuote", type: "bool" },
+                    { name: "isExactInput", type: "bool" },
+                    { name: "amount", type: "uint256" },
+                    { name: "oppositeAmountBound", type: "uint256" },
+                    { name: "deadline", type: "uint256" },
+                    { name: "triggerPrice", type: "uint256" },
+                    { name: "takeProfitPrice", type: "uint256" },
+                    { name: "stopLossPrice", type: "uint256" },
+                ]
+            },
+            primaryType: "LimitOrderParams",
+            domain: {
+                name: "lo",
+                version: "1.0",
+                chainId: chainId,
+                verifyingContract: limitOrderBook.address,
+            },
+            message: fillOrderParams
+        };
+
+        const signature = await ethers.provider.send("eth_signTypedData_v4", [
+            trader1.address,
+            JSON.stringify(typedData)
+        ]);
+
+
+        await limitOrderBook.connect(liquidator).fillLimitOrder(fillOrderParams, ethers.utils.arrayify(signature))
+
+        return
 
         //take profit || stoploss
 
