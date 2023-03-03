@@ -24,6 +24,7 @@ import { MockPNFTToken } from "../../typechain/MockPNFTToken"
 import { QuoteToken } from "../../typechain/QuoteToken"
 import { TestAccountBalance } from "../../typechain/TestAccountBalance"
 import { TestPNFTToken } from "../../typechain/TestPNFTToken"
+import { Liquidator } from "../../typechain/Liquidator"
 import { TestRewardMiner } from "../../typechain/TestRewardMiner"
 import { createQuoteTokenFixture, token0Fixture, tokensFixture, uniswapV3FactoryFixture } from "../shared/fixtures"
 
@@ -49,6 +50,7 @@ export interface ClearingHouseFixture {
     mockedNFTPriceFeed2: MockContract
     pool2: UniswapV3Pool
     rewardMiner: RewardMiner | TestRewardMiner
+    liquidator: Liquidator
     testPNFTToken: TestPNFTToken
 }
 
@@ -283,6 +285,11 @@ export function createClearingHouseFixture(
         await accountBalance.setClearingHouse(clearingHouse.address)
         await vault.setClearingHouse(clearingHouse.address)
 
+        //add liquidator
+        const Liquidator = await ethers.getContractFactory("Liquidator")
+        const liquidator = (await Liquidator.deploy()) as Liquidator
+        await liquidator.initialize(clearingHouse.address)
+        //end liquidator
         const TestPNFTToken = await ethers.getContractFactory("TestPNFTToken")
         const testPNFTToken = (await TestPNFTToken.deploy()) as TestPNFTToken
         await testPNFTToken.initialize('PNFT', 'PNFT')
@@ -309,6 +316,7 @@ export function createClearingHouseFixture(
             mockedNFTPriceFeed2,
             pool2,
             rewardMiner,
+            liquidator,
             testPNFTToken,
         }
     }
