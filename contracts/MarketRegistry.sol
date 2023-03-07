@@ -53,6 +53,12 @@ contract MarketRegistry is IMarketRegistry, ClearingHouseCallee, MarketRegistryS
         _uniswapV3Factory = uniswapV3FactoryArg;
         _quoteToken = quoteTokenArg;
         _maxOrdersPerMarket = type(uint8).max;
+
+        _insuranceFundFeeRatioGlobal = 500; // 0.05%
+        _platformFundFeeRatioGlobal = 2000; // 0.2%
+        _optimalDeltaTwapRatioGlobal = 30000; // 3%
+        _unhealthyDeltaTwapRatioGlobal = 50000; // 5%
+        _optimalFundingRatioGlobal = 250000; // 25%
     }
 
     function addPool(address baseToken, address nftContractArg, uint24 feeRatio) external onlyOwner returns (address) {
@@ -61,14 +67,13 @@ contract MarketRegistry is IMarketRegistry, ClearingHouseCallee, MarketRegistryS
 
     function createIsolatedPool(
         address nftContractArg,
-        string memory nameArg,
         string memory symbolArg,
         uint160 sqrtPriceX96,
         uint128 liquidity
     ) external returns (address, address) {
         uint24 uniFeeTier = 3000;
         // create baseToken
-        address baseToken = _createBaseToken(nameArg, symbolArg, sqrtPriceX96);
+        address baseToken = _createBaseToken(symbolArg, sqrtPriceX96);
         // add pool
         address uniPool = _addPool(baseToken, nftContractArg, uniFeeTier, _msgSender(), _msgSender(), true);
         //
@@ -81,11 +86,7 @@ contract MarketRegistry is IMarketRegistry, ClearingHouseCallee, MarketRegistryS
         return (baseToken, uniPool);
     }
 
-    function _createBaseToken(
-        string memory nameArg,
-        string memory symbolArg,
-        uint160 sqrtPriceX96
-    ) internal returns (address) {
+    function _createBaseToken(string memory symbolArg, uint160 sqrtPriceX96) internal returns (address) {
         // appne prefix v for symbol
         symbolArg = string(abi.encodePacked("v", symbolArg));
         //
@@ -93,7 +94,7 @@ contract MarketRegistry is IMarketRegistry, ClearingHouseCallee, MarketRegistryS
         // create baseToken
         bytes memory _initializationCalldata = abi.encodeWithSignature(
             "__VirtualToken_initialize(string,string)",
-            nameArg,
+            symbolArg,
             symbolArg
         );
         address baseToken = ClonesUpgradeable.clone(_vBaseToken);
@@ -165,12 +166,6 @@ contract MarketRegistry is IMarketRegistry, ClearingHouseCallee, MarketRegistryS
         _feeReceiverMap[baseToken] = feeReceiverArg;
         _creatorMap[baseToken] = creatorArg;
         _isolatedMap[baseToken] = isIsolatedArg;
-
-        _insuranceFundFeeRatioGlobal = 500; // 0.05%
-        _platformFundFeeRatioGlobal = 2000; // 0.2%
-        _optimalDeltaTwapRatioGlobal = 30000; // 3%
-        _unhealthyDeltaTwapRatioGlobal = 50000; // 5%
-        _optimalFundingRatioGlobal = 250000; // 25%
 
         emit PoolAdded(baseToken, nftContractArg, creatorArg, isIsolatedArg, uniPool);
 
