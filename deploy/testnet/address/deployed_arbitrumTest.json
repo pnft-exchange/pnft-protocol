@@ -39,10 +39,10 @@
         "symbol": "vETH",
         "decimals": 18,
         "address": "0xeD0a1B1226ef01590088eC3908288DeD97eBde65",
-        "implAddress": ""
+        "implAddress": "0xF4F4Aaf0EB0c08ccfec94391a781DC089DF08eA9"
     },
     "baseToken": {
-        "implAddress": ""
+        "implAddress": "0x98A0DA22822Ad37E1A04285869D1fb890f0961E5"
     },
     "vBAYC": {
         "address": "0xC5aA0A7a8a43AEe563C3a3B86A6FD0AD56f04353",
@@ -101,41 +101,41 @@
         "address": "0x4893376342d5D7b3e31d4184c08b265e5aB2A3f6"
     },
     "uniswapV3Broker": {
-        "address": ""
+        "address": "0xE31905F77F0e4fe54d3E6999BFD80D94d957D51a"
     },
     "genericLogic": {
-        "address": ""
+        "address": "0x47bfe6879c218C2051FD35b806a04ba7395Ec044"
     },
     "clearingHouseLogic": {
-        "address": ""
+        "address": "0x53Af60f02dF53704d448918009c1682bDC580b44"
     },
     "clearingHouseConfig": {
         "address": "0x53D711e7695100381306AAFCa4b295A141f8d955",
-        "implAddress": ""
+        "implAddress": "0x038b929436c306434F1a5Ae2679ad068Be177042"
     },
     "marketRegistry": {
         "address": "0x8D6aD71E77EBc89275925c32B0B3A5D7e180383a",
-        "implAddress": ""
+        "implAddress": "0x8b89Ca2F500C7f0f665eCcf354351819FB61930E"
     },
     "accountBalance": {
         "address": "0x47C516F9cF7a0141af67F9204643a54dfD022abd",
-        "implAddress": ""
+        "implAddress": "0x2a0993F9fBb5AF0E89Cd3341F7EECf478261c2E6"
     },
     "vPool": {
         "address": "0x79b2B0B20B53a8d269375B9e2C030b7Ca0C22d50",
-        "implAddress": ""
+        "implAddress": "0xBebF2E179c7605A639DB4BF4ACC9321862CEF355"
     },
     "insuranceFund": {
         "address": "0xA01e4abB40E4546695E1051D82939f718e03198A",
-        "implAddress": ""
+        "implAddress": "0x89389A112c46b6B54a4ac89aca821f5932229A5B"
     },
     "vault": {
         "address": "0x217AF33FA96dB0261bB9b570456203F81956e050",
-        "implAddress": ""
+        "implAddress": "0xa8F86291dd72Ea0A8011E1Bd3206c522D19E823E"
     },
     "clearingHouse": {
         "address": "0xf55b291Acbda07E69e49e1Dfa078E6db1Ee70E42",
-        "implAddress": ""
+        "implAddress": "0x41A87AB0d5a215c617642207501007F6FCE4cC58"
     },
     "testFaucet": {
         "address": "0xafFABBC0bf710D1D0fdA35FAeEFBe1bB77c70EC2",
@@ -165,11 +165,11 @@
         "implAddress": "0xbcAB8cC871F2bF5d9E6F3AB104729DB605B0F8b4"
     },
     "nftOracle": {
-        "address": "",
-        "implAddress": ""
+        "address": "0xa27638Dd970003d19d5B9dD2AE5A94620E4FDAD4",
+        "implAddress": "0x3831A8841EB84f4848693799c720089Be464aCcd"
     },
     "vBaseToken": {
-        "address": "",
+        "address": "0x53B15530126b65FcbB940d986b6fE63dEb3D6F21",
         "implAddress": ""
     },
     "testCheck": {
