@@ -193,7 +193,17 @@ interface IClearingHouse {
 
     /// @notice Settle all markets fundingPayment to owedRealized Pnl
     /// @param trader The address of trader
-    function settleAllFunding(address trader) external;
+    function settleAllFunding(address trader, address baseToken) external;
+
+    function depositEtherAndOpenPosition(
+        DataTypes.OpenPositionParams memory params
+    ) external payable returns (uint256 base, uint256 quote, uint256 fee);
+
+    function depositAndOpenPosition(
+        DataTypes.OpenPositionParams memory params,
+        address token,
+        uint256 amount
+    ) external returns (uint256 base, uint256 quote, uint256 fee);
 
     /// @notice Trader can call `openPosition` to long/short on baseToken market
     /// @dev - `OpenPositionParams.oppositeAmountBound`
@@ -232,6 +242,14 @@ interface IClearingHouse {
     /// @return quote The amount of quoteToken the taker got or spent
     function closePosition(
         DataTypes.ClosePositionParams calldata params
+    ) external returns (uint256 base, uint256 quote, uint256 fee);
+
+    function closePositionAndWithdrawAllEther(
+        DataTypes.ClosePositionParams memory params
+    ) external returns (uint256 base, uint256 quote, uint256 fee);
+
+    function closePositionAndWithdrawAll(
+        DataTypes.ClosePositionParams memory params
     ) external returns (uint256 base, uint256 quote, uint256 fee);
 
     /// @notice liquidate trader's position and will liquidate the max possible position size
@@ -309,4 +327,8 @@ interface IClearingHouse {
     function getPlatformFund() external view returns (address platformFund);
 
     function getMarketRegistry() external view returns (address marketRegistry);
+
+    function isAbleRepeg(address baseToken) external view returns (bool);
+
+    function getLiquidity(address baseToken) external view returns (uint128);
 }
