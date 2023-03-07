@@ -192,7 +192,7 @@ async function deploy() {
         priceData = JSON.parse(dataText.toString())
     }
 
-    const [admin, maker, priceAdmin, platformFund, trader1, trader2, trader3, trader4, hieuq] = await ethers.getSigners()
+    const [admin, maker, priceAdmin, platformFund, trader1, trader2, trader3, trader4, miner] = await ethers.getSigners()
 
     // deploy UniV3 factory
     var genericLogic = (await hre.ethers.getContractAt('GenericLogic', deployData.genericLogic.address)) as GenericLogic;
@@ -208,29 +208,39 @@ async function deploy() {
     var testFaucet = (await hre.ethers.getContractAt('TestFaucet', deployData.testFaucet.address)) as TestFaucet;
     var wETH = (await hre.ethers.getContractAt('TestERC20', deployData.wETH.address)) as TestERC20;
     var limitOrderBook = (await hre.ethers.getContractAt('LimitOrderBook', deployData.limitOrderBook.address)) as LimitOrderBook;
-
-    console.log(
-        formatEther(await vPool.getIndexPrice('0x25aB0105F77a1e2C0FdB426467EB235b3c17F45C'))
-    )
+    const vETH = (await hre.ethers.getContractAt('QuoteToken', deployData.vETH.address)) as BaseToken;
 
     // console.log(
-    //     await clearingHouse.getDelegateApproval()
+    //     '',
+    //     (await vETH.)
     // )
 
-    var limitOrderBook = (await hre.ethers.getContractAt('LimitOrderBook', deployData.limitOrderBook.address)) as LimitOrderBook;
-
-    // console.log(
-    //     (await limitOrderBook.getClearingHouse()),
-    //     (await limitOrderBook.getAccountBalance()),
-    //     formatEther(await limitOrderBook.getMinOrderValue()),
-    //     formatEther(await limitOrderBook.getFeeOrderValue()),
+    // await waitForTx(
+    //     await marketRegistry.connect(miner).createIsolatedPool('0x59Ad67e9c6a84e602BC73B3A606F731CC6dF210d', 'HOLO', encodePriceSqrt('0.32', "1"), parseEther('1772.18'))
     // )
 
-    // console.log(
-    //     formatEther(await accountBalance.getReferencePrice(deployData.vBAYC.address))
-    // )
+    // // await waitForTx(
+    // //     await clearingHouse.setDelegateApproval(limitOrderBook.address)
+    // // )
 
-    // return
+    // // console.log(
+    // //     await clearingHouse.getDelegateApproval()
+    // // )
+
+    // var limitOrderBook = (await hre.ethers.getContractAt('LimitOrderBook', deployData.limitOrderBook.address)) as LimitOrderBook;
+
+    // // console.log(
+    // //     (await limitOrderBook.getClearingHouse()),
+    // //     (await limitOrderBook.getAccountBalance()),
+    // //     formatEther(await limitOrderBook.getMinOrderValue()),
+    // //     formatEther(await limitOrderBook.getFeeOrderValue()),
+    // // )
+
+    // // console.log(
+    // //     formatEther(await accountBalance.getReferencePrice(deployData.vBAYC.address))
+    // // )
+
+    // // return
 
     // {
     //     let multiplier = await accountBalance.getMarketMultiplier(deployData.vBAYC.address)
@@ -298,20 +308,20 @@ async function deploy() {
     //     });
     //     console.log("Metamask sig utils generated signature", signature);
 
-        // // const signature = await ethers.provider.send("eth_signTypedData_v4", [
-        // //     trader1.address,
-        // //     JSON.stringify(typedData)
-        // // ]);
+    //     // // const signature = await ethers.provider.send("eth_signTypedData_v4", [
+    //     // //     trader1.address,
+    //     // //     JSON.stringify(typedData)
+    //     // // ]);
 
-        // let orderHash = await limitOrderBook.getOrderHash(fillOrderParams)
+    //     // let orderHash = await limitOrderBook.getOrderHash(fillOrderParams)
 
-        // // eth_sign
-        // const signature = await ethers.provider.send("eth_sign", [
-        //     trader1.address,
-        //     ethers.utils.arrayify(orderHash),
-        // ]);
+    //     // // eth_sign
+    //     // const signature = await ethers.provider.send("eth_sign", [
+    //     //     trader1.address,
+    //     //     ethers.utils.arrayify(orderHash),
+    //     // ]);
 
-        // trader1._signTypedData
+    //     // trader1._signTypedData
 
     //     await waitForTx(
     //         await limitOrderBook.connect(platformFund).fillLimitOrder(fillOrderParams, ethers.utils.arrayify(signature))
