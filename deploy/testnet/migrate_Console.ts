@@ -213,9 +213,9 @@ async function deploy() {
 
     const vHOLO = (await hre.ethers.getContractAt('VirtualToken', '0x58d4a037225134d351F2147fb2979aFBe8a14c4c')) as VirtualToken;
 
-    await waitForTx(
-        await nftOracle.connect(priceAdmin).setNftPrice('0x59Ad67e9c6a84e602BC73B3A606F731CC6dF210d', parseEther('0.32'))
-    )
+    // await waitForTx(
+    //     await nftOracle.connect(priceAdmin).setNftPrice('0x59Ad67e9c6a84e602BC73B3A606F731CC6dF210d', parseEther('0.32'))
+    // )
 
     // await waitForTx(
     //     await clearingHouse.connect(miner).addLiquidity({
@@ -235,12 +235,12 @@ async function deploy() {
     // await marketRegistry.setNftContract('0x25aB0105F77a1e2C0FdB426467EB235b3c17F45C', '0x59Ad67e9c6a84e602BC73B3A606F731CC6dF210d')
     // await marketRegistry.setCreator('0x25aB0105F77a1e2C0FdB426467EB235b3c17F45C', miner.address)
 
-    console.log(
-        'getNftContract',
-        (await marketRegistry.getNftContract(deployData.vMAYC.address)),
-        'getCreator',
-        (await marketRegistry.getCreator(deployData.vMAYC.address)),
-    )
+    // console.log(
+    //     'getNftContract',
+    //     (await marketRegistry.getNftContract(deployData.vMAYC.address)),
+    //     'getCreator',
+    //     (await marketRegistry.getCreator(deployData.vMAYC.address)),
+    // )
 
     // await waitForTx(
     //     await marketRegistry.connect(miner).createIsolatedPool('0x59Ad67e9c6a84e602BC73B3A606F731CC6dF210d', 'HOLO', encodePriceSqrt('0.32', "1"))
