@@ -232,7 +232,7 @@ async function deploy() {
     // )
 
     // await waitForTx(
-    //     await marketRegistry.connect(miner).createIsolatedPool('0x59Ad67e9c6a84e602BC73B3A606F731CC6dF210d', 'HOLO', encodePriceSqrt('0.32', "1"), parseEther('1772.18'))
+    //     await marketRegistry.connect(miner).createIsolatedPool('0x59Ad67e9c6a84e602BC73B3A606F731CC6dF210d', 'HOLO', encodePriceSqrt('0.32', "1"))
     // )
 
     // // await waitForTx(
