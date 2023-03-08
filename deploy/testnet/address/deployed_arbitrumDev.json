@@ -52,7 +52,7 @@
         "nftContract": "0xED5AF388653567Af2F388E6224dC7C4b3241C544"
     },
     "vCLONEX": {
-        "address": "0x1BbBe185E4DEeE1da03fd7282439323D884552d9",
+        "address": "",
         "name": "vCLONEX",
         "symbol": "vCLONEX",
         "decimals": 18,
