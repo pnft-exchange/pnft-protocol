@@ -6,7 +6,7 @@ import helpers from "../helpers";
 import { ProxyAdmin } from "../../typechain/openzeppelin/ProxyAdmin";
 import { isAscendingTokenOrder } from "../../test/shared/utilities";
 
-const {  waitForDeploy, verifyContract, loadDB, saveDB, upgradeContract } = helpers;
+const { waitForDeploy, verifyContract, loadDB, saveDB, upgradeContract } = helpers;
 
 async function main() {
     await deploy();
@@ -32,29 +32,29 @@ async function deploy() {
         }
     }
     // 
-    // if (deployData.vETH.address == undefined || deployData.vETH.address == '' || !(deployData.vETH.address.toLowerCase().startsWith("0xf"))) {
-    //     var quoteToken = await hre.ethers.getContractAt('QuoteToken', deployData.vETH.implAddress);
-    //     var initializeData = quoteToken.interface.encodeFunctionData('initialize', [deployData.vETH.name, deployData.vETH.symbol]);
-    //     for (let i = 0; i < 32; i++) {
-    //         var transparentUpgradeableProxy = await waitForDeploy(
-    //             await TransparentUpgradeableProxy.deploy(
-    //                 deployData.vETH.implAddress,
-    //                 proxyAdmin.address,
-    //                 initializeData,
-    //             )
-    //         )
-    //         if (deployData.vETH.address == undefined ||
-    //             deployData.vETH.address == '' ||
-    //             isAscendingTokenOrder(deployData.vETH.address, transparentUpgradeableProxy.address.toString())) {
-    //             deployData.vETH.address = transparentUpgradeableProxy.address;
-    //             deployData = (await saveDB(network, deployData))
-    //             console.log('vETH TransparentUpgradeableProxy is deployed', transparentUpgradeableProxy.address)
-    //             if (deployData.vETH.address.toLowerCase().startsWith("0xf")) {
-    //                 break
-    //             }
-    //         }
-    //     }
-    // }
+    if (deployData.vETH.address == undefined || deployData.vETH.address == '' || !(deployData.vETH.address.toLowerCase().startsWith("0xf"))) {
+        var quoteToken = await hre.ethers.getContractAt('QuoteToken', deployData.vETH.implAddress);
+        var initializeData = quoteToken.interface.encodeFunctionData('initialize', [deployData.vETH.name, deployData.vETH.symbol]);
+        while (true) {
+            var transparentUpgradeableProxy = await waitForDeploy(
+                await TransparentUpgradeableProxy.deploy(
+                    deployData.vETH.implAddress,
+                    proxyAdmin.address,
+                    initializeData,
+                )
+            )
+            if (deployData.vETH.address == undefined ||
+                deployData.vETH.address == '' ||
+                isAscendingTokenOrder(deployData.vETH.address, transparentUpgradeableProxy.address.toString())) {
+                deployData.vETH.address = transparentUpgradeableProxy.address;
+                deployData = (await saveDB(network, deployData))
+                console.log('vETH TransparentUpgradeableProxy is deployed', transparentUpgradeableProxy.address)
+                if (deployData.vETH.address.toLowerCase().startsWith("0xf")) {
+                    break
+                }
+            }
+        }
+    }
     {
         await upgradeContract(proxyAdmin as ProxyAdmin, deployData.vETH.address, deployData.vETH.implAddress)
     }
