@@ -101,13 +101,13 @@
         "address": "0x4893376342d5D7b3e31d4184c08b265e5aB2A3f6"
     },
     "uniswapV3Broker": {
-        "address": "0xE31905F77F0e4fe54d3E6999BFD80D94d957D51a"
+        "address": "0x9f64A40fe0AcCE5a4FBA38A1C52d0d3324ec94d1"
     },
     "genericLogic": {
-        "address": "0x0e7933905278124e60df475b64888a40A3186AF5"
+        "address": "0xA6aBE415630E1d85aB2Bafa6330a3D60593330aE"
     },
     "clearingHouseLogic": {
-        "address": "0xb5e4387108e3bC0Fe0f5321e92DD3cc7aC4746FF"
+        "address": "0x8CB174989416C6Cd96dC76b667aAfbf13EE86380"
     },
     "clearingHouseConfig": {
         "address": "0x53D711e7695100381306AAFCa4b295A141f8d955",
@@ -115,7 +115,7 @@
     },
     "marketRegistry": {
         "address": "0x8D6aD71E77EBc89275925c32B0B3A5D7e180383a",
-        "implAddress": "0xD7526bAD6dcf08F096af69eA6C8d10DF3fF9bbCC"
+        "implAddress": "0xbb3aD52856b1Fe33cC59D12Ea246098fD546b22b"
     },
     "accountBalance": {
         "address": "0x47C516F9cF7a0141af67F9204643a54dfD022abd",
@@ -123,19 +123,19 @@
     },
     "vPool": {
         "address": "0x79b2B0B20B53a8d269375B9e2C030b7Ca0C22d50",
-        "implAddress": "0x1380841909f2BF974dD3a5aF110d2f6F3d0aD985"
+        "implAddress": "0x8Ab430A2c65044cf87e18491F51a5cE650fF684B"
     },
     "insuranceFund": {
         "address": "0xA01e4abB40E4546695E1051D82939f718e03198A",
-        "implAddress": "0x89389A112c46b6B54a4ac89aca821f5932229A5B"
+        "implAddress": "0xb48Bb6b39f6AB8bbb871242C5ad286e45A30A05B"
     },
     "vault": {
         "address": "0x217AF33FA96dB0261bB9b570456203F81956e050",
-        "implAddress": "0xa8F86291dd72Ea0A8011E1Bd3206c522D19E823E"
+        "implAddress": "0x933f61044F0A7ed676c758D6966cd4405936Cb5D"
     },
     "clearingHouse": {
         "address": "0xf55b291Acbda07E69e49e1Dfa078E6db1Ee70E42",
-        "implAddress": "0x1892E77aD0819212bb8295AF2E6c353C984EDCA5"
+        "implAddress": "0x8E03b1bc27Ef43fF6a4DD7546Fe39ac1E9fBa98D"
     },
     "testFaucet": {
         "address": "0xafFABBC0bf710D1D0fdA35FAeEFBe1bB77c70EC2",

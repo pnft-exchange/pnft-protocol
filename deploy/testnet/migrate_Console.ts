@@ -5,7 +5,7 @@ import bn from "bignumber.js"
 import hre, { ethers } from "hardhat";
 
 import { encodePriceSqrt, formatSqrtPriceX96ToPrice } from "../../test/shared/utilities";
-import { AccountBalance, BaseToken, ClearingHouse, ClearingHouseConfig, VPool, GenericLogic, InsuranceFund, MarketRegistry, MockPNFTToken, NftPriceFeed, QuoteToken, RewardMiner, TestERC20, TestFaucet, UniswapV3Pool, Vault, LimitOrderBook, ReferralPayment } from "../../typechain";
+import { AccountBalance, BaseToken, ClearingHouse, ClearingHouseConfig, VPool, GenericLogic, InsuranceFund, MarketRegistry, MockPNFTToken, NftPriceFeed, QuoteToken, RewardMiner, TestERC20, TestFaucet, UniswapV3Pool, Vault, LimitOrderBook, ReferralPayment, VirtualToken } from "../../typechain";
 import { getMaxTickRange, priceToTick } from "../../test/helper/number";
 import helpers from "../helpers";
 import { formatEther, parseEther, parseUnits } from "ethers/lib/utils";
@@ -208,11 +208,27 @@ async function deploy() {
     var testFaucet = (await hre.ethers.getContractAt('TestFaucet', deployData.testFaucet.address)) as TestFaucet;
     var wETH = (await hre.ethers.getContractAt('TestERC20', deployData.wETH.address)) as TestERC20;
     var limitOrderBook = (await hre.ethers.getContractAt('LimitOrderBook', deployData.limitOrderBook.address)) as LimitOrderBook;
-    const vETH = (await hre.ethers.getContractAt('QuoteToken', deployData.vETH.address)) as BaseToken;
+    const vETH = (await hre.ethers.getContractAt('QuoteToken', deployData.vETH.address)) as QuoteToken;
+
+    const vHOLO = (await hre.ethers.getContractAt('VirtualToken', '0x58d4a037225134d351F2147fb2979aFBe8a14c4c')) as VirtualToken;
+
+    // await waitForTx(
+    //     await clearingHouse.connect(miner).addLiquidity({
+    //         baseToken: '0x58d4a037225134d351F2147fb2979aFBe8a14c4c',
+    //         liquidity: parseEther('1772.18'),
+    //         deadline: ethers.constants.MaxUint256,
+    //     }),
+    // )
 
     // console.log(
-    //     '',
-    //     (await vETH.)
+    //     formatEther(await marketRegistry.getMinQuoteTickCrossedGlobal()),
+    //     formatEther(await marketRegistry.getMaxQuoteTickCrossedGlobal()),
+    // )
+
+    // console.log(
+    //     'getCreator',
+    //     (await marketRegistry.getNftContract('0x58d4a037225134d351F2147fb2979aFBe8a14c4c')),
+    //     (await marketRegistry.getCreator('0x58d4a037225134d351F2147fb2979aFBe8a14c4c')),
     // )
 
     // await waitForTx(
