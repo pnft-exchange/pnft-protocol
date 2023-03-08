@@ -115,7 +115,7 @@
     },
     "marketRegistry": {
         "address": "0x8D6aD71E77EBc89275925c32B0B3A5D7e180383a",
-        "implAddress": "0x150EaA0A3d6E91C65c7050Fc1c6EA9d60B150CCe"
+        "implAddress": "0xB4f88461440b2795E4dD8bA28b7F361876189448"
     },
     "accountBalance": {
         "address": "0x47C516F9cF7a0141af67F9204643a54dfD022abd",
@@ -135,7 +135,7 @@
     },
     "clearingHouse": {
         "address": "0xf55b291Acbda07E69e49e1Dfa078E6db1Ee70E42",
-        "implAddress": "0x73B748023e18854cbe37b2d6f9c501637601F3cd"
+        "implAddress": "0x50e5E2312303997057fc34681581731071af83Cf"
     },
     "testFaucet": {
         "address": "0xafFABBC0bf710D1D0fdA35FAeEFBe1bB77c70EC2",
