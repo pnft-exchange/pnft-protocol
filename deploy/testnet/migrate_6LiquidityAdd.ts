@@ -66,7 +66,7 @@ async function deploy() {
         // parseEther('522.05'),
         // parseEther('928.31'),
         // parseEther('892.10'),
-        
+
         // parseEther('451.44'), // 20E
         // parseEther('980.06'),
         // parseEther('498.17'),
@@ -82,6 +82,14 @@ async function deploy() {
         // parseEther('529.42'),
         // parseEther('903.43'),
         // parseEther('864.11'),
+
+        // parseEther('118.32'),
+        // parseEther('255.27'),
+        // parseEther('122.47'),
+        // parseEther('407.36'),
+        // parseEther('262.36'),
+        // parseEther('468.84'),
+        // parseEther('443.52'),
     ];
 
     for (let i = 0; i < baseTokens.length; i++) {

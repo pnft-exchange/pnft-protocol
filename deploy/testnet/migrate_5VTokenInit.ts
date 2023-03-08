@@ -61,7 +61,7 @@ async function deploy() {
         'priceCLONEX',
         'priceDOODLE'
     ];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < baseTokens.length; i++) {
         console.log(
             '--------------------------------------',
             priceKeys[i].substring(5),
@@ -73,12 +73,12 @@ async function deploy() {
 
         const baseToken = (await ethers.getContractAt('BaseToken', baseTokenAddress)) as BaseToken;
 
-        // oracle price
-        {
-            await waitForTx(
-                await nftOracle.connect(priceAdmin).setNftPrice(nftContractAddress, parseEther(initPrice)), 'priceFeed.connect(priceAdmin).setPrice(parseEther(price))'
-            )
-        }
+        // // oracle price
+        // {
+        //     await waitForTx(
+        //         await nftOracle.connect(priceAdmin).setNftPrice(nftContractAddress, parseEther(initPrice)), 'priceFeed.connect(priceAdmin).setPrice(parseEther(price))'
+        //     )
+        // }
         // deploy clearingHouse
         {
             if (!(await baseToken.isInWhitelist(clearingHouse.address))) {
@@ -94,7 +94,7 @@ async function deploy() {
             // setting pool
             let poolAddr = await uniswapV3Factory.getPool(baseToken.address, vETH.address, uniFeeTier)
             if (poolAddr == ethers.constants.AddressZero) {
-                await waitForTx(await uniswapV3Factory.createPool(baseToken.address, vETH.address, uniFeeTier),
+                await waitForTx(await uniswapV3Factory.createPool(baseToken.address, vETH.address, uniFeeTier, { gasLimit: 10000000 }),
                     'uniswapV3Factory.createPool(baseToken.address, vETH.address, uniFeeTier)')
             }
             poolAddr = uniswapV3Factory.getPool(baseToken.address, vETH.address, uniFeeTier)
@@ -118,8 +118,8 @@ async function deploy() {
             if (!(await marketRegistry.hasPool(baseToken.address))) {
                 const uniFeeRatio = await uniPool.fee()
                 await tryWaitForTx(
-                    await marketRegistry.addPool(nftContractAddress, baseToken.address, uniFeeRatio),
-                    'marketRegistry.addPool(baseToken.address, uniFeeRatio)'
+                    await marketRegistry.addPool(baseToken.address, nftContractAddress, uniFeeRatio),
+                    'marketRegistry.addPool(nftContractAddress, baseToken.address, uniFeeRatio)'
                 )
             }
         }

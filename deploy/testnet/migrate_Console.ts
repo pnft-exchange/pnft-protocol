@@ -213,12 +213,35 @@ async function deploy() {
 
     const vHOLO = (await hre.ethers.getContractAt('VirtualToken', '0x58d4a037225134d351F2147fb2979aFBe8a14c4c')) as VirtualToken;
 
-    console.log(
-        // formatEther(await vault.getAccountValue(trader1.address, ethers.constants.AddressZero))
-        formatEther((await vPool.getAllPendingFundingPayment(trader2.address, ethers.constants.AddressZero))),
-        // await marketRegistry.isIsolated(ethers.constants.AddressZero),
-        // formatEther(await accountBalance.getPnlAndPendingFee(trader1.address, ethers.constants.AddressZero)[0]),
+
+    // waitForTx(
+    //     await nftOracle.connect(priceAdmin).setNftPrice(
+    //         '0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D',
+    //         parseEther('70'),
+    //     )
+    // )
+
+    waitForTx(
+        await nftOracle.connect(priceAdmin).setMultipleNftPrices(
+            [
+                '0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D',
+                '0x60E4d786628Fea6478F785A6d7e704777c86a7c6',
+                '0xb7F7F6C52F2e2fdb1963Eab30438024864c313F6',
+            ],
+            [
+                parseEther('70'),
+                parseEther('15'),
+                parseEther('95'),
+            ],
+        )
     )
+
+    // console.log(
+    //     // formatEther(await vault.getAccountValue(trader1.address, ethers.constants.AddressZero))
+    //     formatEther((await vPool.getAllPendingFundingPayment(trader2.address, ethers.constants.AddressZero))),
+    //     // await marketRegistry.isIsolated(ethers.constants.AddressZero),
+    //     // formatEther(await accountBalance.getPnlAndPendingFee(trader1.address, ethers.constants.AddressZero)[0]),
+    // )
 
     // await waitForTx(
     //     await nftOracle.connect(priceAdmin).setNftPrice('0x59Ad67e9c6a84e602BC73B3A606F731CC6dF210d', parseEther('0.32'))
