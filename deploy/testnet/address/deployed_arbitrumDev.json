@@ -1,7 +1,7 @@
 {
     "verifiedContracts": {},
     "wETH": {
-        "address": "0x48880ee400B7cb952F8704d6a78c403C0c35B01D",
+        "address": "0xe39Ab88f8A4777030A534146A9Ca3B52bd5D43A3",
         "name": "Wrapped Ether",
         "symbol": "WETH",
         "decimals": 18
@@ -99,11 +99,11 @@
     },
     "insuranceFund": {
         "address": "0xa857Ea6eDC0D3c61C176DCdc4d6c8A25c8c52eB6",
-        "implAddress": "0xBEd01cAcb3697301AF4bc99951F06785A5480e44"
+        "implAddress": "0x79D19abdB700b8F6c8aA02CceeAde57c101A1104"
     },
     "vault": {
         "address": "0x5e1D5E73DaAf3FD5C61Af6745c7CD47Fd4237669",
-        "implAddress": "0xA7175ad1f1c34BbF05a62BBc83616914AcdFc0E1"
+        "implAddress": "0x0270f2aeC2542f3bEa8557F863d5CC442A7839B1"
     },
     "clearingHouse": {
         "address": "0xe0b9f964a1eb94B18591040d7ED3CfBc6cc7A92a",
