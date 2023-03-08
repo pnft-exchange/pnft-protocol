@@ -213,6 +213,13 @@ async function deploy() {
 
     const vHOLO = (await hre.ethers.getContractAt('VirtualToken', '0x58d4a037225134d351F2147fb2979aFBe8a14c4c')) as VirtualToken;
 
+    console.log(
+        // formatEther(await vault.getAccountValue(trader1.address, ethers.constants.AddressZero))
+        formatEther((await vPool.getAllPendingFundingPayment(trader2.address, ethers.constants.AddressZero))),
+        // await marketRegistry.isIsolated(ethers.constants.AddressZero),
+        // formatEther(await accountBalance.getPnlAndPendingFee(trader1.address, ethers.constants.AddressZero)[0]),
+    )
+
     // await waitForTx(
     //     await nftOracle.connect(priceAdmin).setNftPrice('0x59Ad67e9c6a84e602BC73B3A606F731CC6dF210d', parseEther('0.32'))
     // )

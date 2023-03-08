@@ -115,7 +115,7 @@
     },
     "marketRegistry": {
         "address": "0x8D6aD71E77EBc89275925c32B0B3A5D7e180383a",
-        "implAddress": "0xaD8Cd398d406868a5010940DD7D5b59Cc192Dff6"
+        "implAddress": "0x1183D8c7cC40b564B638715eDDe6D2DfB477d73B"
     },
     "accountBalance": {
         "address": "0x47C516F9cF7a0141af67F9204643a54dfD022abd",
