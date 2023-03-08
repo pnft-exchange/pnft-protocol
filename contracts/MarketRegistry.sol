@@ -233,6 +233,10 @@ contract MarketRegistry is IMarketRegistry, ClearingHouseCallee, MarketRegistryS
         _nftContractMap[baseToken] = nftContractArg;
     }
 
+    function setCreator(address baseToken, address creatorArg) external checkPool(baseToken) onlyOwner {
+        _creatorMap[baseToken] = creatorArg;
+    }
+
     function setVBaseToken(address vBaseTokenArg) external onlyOwner {
         _vBaseToken = vBaseTokenArg;
     }
@@ -274,14 +278,20 @@ contract MarketRegistry is IMarketRegistry, ClearingHouseCallee, MarketRegistryS
     }
 
     function setMinQuoteTickCrossedGlobal(uint128 minQuoteTickCrossedGlobalArg) external onlyOwner {
+        require(_defaultQuoteTickCrossedGlobal < _maxQuoteTickCrossedGlobal, "MR_IV");
+        require(_minQuoteTickCrossedGlobal < _defaultQuoteTickCrossedGlobal, "MR_IV");
         _minQuoteTickCrossedGlobal = minQuoteTickCrossedGlobalArg;
     }
 
     function setMaxQuoteTickCrossedGlobal(uint128 maxQuoteTickCrossedGlobalArg) external onlyOwner {
+        require(_defaultQuoteTickCrossedGlobal < _maxQuoteTickCrossedGlobal, "MR_IV");
+        require(_minQuoteTickCrossedGlobal < _defaultQuoteTickCrossedGlobal, "MR_IV");
         _maxQuoteTickCrossedGlobal = maxQuoteTickCrossedGlobalArg;
     }
 
     function setDefaultQuoteTickCrossedGlobal(uint128 defaultQuoteTickCrossedGlobalArg) external onlyOwner {
+        require(_defaultQuoteTickCrossedGlobal < _maxQuoteTickCrossedGlobal, "MR_IV");
+        require(_minQuoteTickCrossedGlobal < _defaultQuoteTickCrossedGlobal, "MR_IV");
         _defaultQuoteTickCrossedGlobal = defaultQuoteTickCrossedGlobalArg;
     }
 
