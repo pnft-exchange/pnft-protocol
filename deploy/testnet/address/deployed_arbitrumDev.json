@@ -129,8 +129,8 @@
     },
     "referralAdminAddress": "0xBD91528e1B91AdbddF9f049e4CF5A5D9A45F1B8B",
     "referralPayment": {
-        "address": "",
-        "implAddress": ""
+        "address": "0xb4D02Bb20ADa52df8Aee2F138b571F0aEeb4B60f",
+        "implAddress": "0x49289FE1df6359Aa9Ed90456194CBa88C5D2d47A"
     },
     "limitOrderBook": {
         "address": "0xf3977Af59211275613430237241EED019C187DaB",
