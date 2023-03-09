@@ -76,10 +76,10 @@
         "address": "0x791781062f7ABf47b482E6428F5418304d12cCc5"
     },
     "genericLogic": {
-        "address": "0x2a653fa1da1d9155e68a9FA66430D9a99cC47204"
+        "address": "0xfFC9d0630C8F812Ca2980ABF2B4AC9985cDE7ABd"
     },
     "clearingHouseLogic": {
-        "address": "0x7C25de5430843c5C96B283F4732326E0AB68d045"
+        "address": "0xCFab309F2fcBd4cFe8e695E9f5583b00146f6848"
     },
     "clearingHouseConfig": {
         "address": "0xA1C0735D72A212350a6f0a9c3D395EcC3AAB240f",
@@ -87,7 +87,7 @@
     },
     "marketRegistry": {
         "address": "0x2E1b44d30a1805c1671B6B6e2266266f9061a785",
-        "implAddress": "0xe1BcAb401316c97c3a4812DA9B0785D233627D99"
+        "implAddress": "0x16c4C31a28924d149cFC4d0bB9596527ac4cED31"
     },
     "accountBalance": {
         "address": "0x4f92e92216bD2a3B2aba39453F6eee337cc8b362",
@@ -95,7 +95,7 @@
     },
     "vPool": {
         "address": "0xB26ed2e8EaAF0d4AA68fb6f02F08e15622d7c918",
-        "implAddress": "0x3f1559d5Fb070cdeD098896D8d126c65250CE4D4"
+        "implAddress": "0xd3672ED75D967E5c1c4aD66310235a78C80BCBc8"
     },
     "insuranceFund": {
         "address": "0xa857Ea6eDC0D3c61C176DCdc4d6c8A25c8c52eB6",
@@ -107,7 +107,7 @@
     },
     "clearingHouse": {
         "address": "0xe0b9f964a1eb94B18591040d7ED3CfBc6cc7A92a",
-        "implAddress": "0xded75C74300418AE81528B062a4aC0435AEdaABc"
+        "implAddress": "0xA266170F9D396681eb32Fd3944f34fEa54Ac655A"
     },
     "testFaucet": {
         "address": "",
