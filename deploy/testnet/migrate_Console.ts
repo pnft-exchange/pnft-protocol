@@ -726,6 +726,11 @@ async function deploy() {
     //         'isAbleRepeg',
     //         isAbleRepeg
     //     )
+    //     console.log(
+    //         'getPrice',
+    //         formatEther(await vPool.getMarkPrice(baseTokenAddr)),
+    //         formatEther(await vPool.getIndexPrice(baseTokenAddr)),
+    //     )
     //     if (isAbleRepeg) {
     //         await waitForTx(
     //             await clearingHouse.repeg(baseTokenAddr),
@@ -809,10 +814,13 @@ async function deploy() {
     //     formatEther(new bn(freeCollateral.toString()).minus(new bn(formatEther(realizedPnl)).toFixed(0)).toString()),
     // )
 
+    // let baseTokenAddr = '0x90eD8673983B41c1427741FE3a510eA6E341FEdf'
     // var isAbleRepeg = (await clearingHouse.isAbleRepeg(baseTokenAddr))
     // console.log(
     //     'isAbleRepeg',
-    //     isAbleRepeg
+    //     isAbleRepeg,
+    //     formatEther(await vPool.getMarkPrice(baseTokenAddr)),
+    //     formatEther(await vPool.getIndexPrice(baseTokenAddr)),
     // )
     // if (isAbleRepeg) {
     //     waitForTx(
