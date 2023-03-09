@@ -455,6 +455,7 @@ describe("Deployment check", () => {
                 await vault.setMarketRegistry(marketRegistry.address)
                 await accountBalance.setMarketRegistry(marketRegistry.address)
                 await insuranceFund.setMarketRegistry(marketRegistry.address)
+                await vPool.setMaxTickCrossedWithinBlock(getMaxTickRange())
             }
 
             const vBAYC = await ethers.getContractAt('BaseToken', deployData.vBAYC.address);
