@@ -217,6 +217,29 @@ async function deploy() {
     // {
     //     await waitForTx(
     //         await clearingHouse.connect(miner).depositEtherAndOpenPosition({
+    //             baseToken: '0x893CfB121A1B987D6A32cd246Ff501EeDe89ee5C',
+    //             isBaseToQuote: true,
+    //             isExactInput: false,
+    //             oppositeAmountBound: 0,
+    //             amount: parseEther("0.1"),
+    //             sqrtPriceLimitX96: 0,
+    //             deadline: ethers.constants.MaxUint256,
+    //             referralCode: ethers.constants.HashZero,
+    //         },
+    //             { value: parseEther('0.02025') }
+    //         ),
+    //         'clearingHouse.connect(trader1).depositEtherAndOpenPosition'
+    //     )
+    // }
+
+    console.log(
+        (await vPool.getInsuranceFundFeeRatio('0x90eD8673983B41c1427741FE3a510eA6E341FEdf', false)).toString()
+    )
+
+
+    // {
+    //     await waitForTx(
+    //         await clearingHouse.connect(miner).depositEtherAndOpenPosition({
     //             baseToken: deployData.vBAYC.address,
     //             isBaseToQuote: false,
     //             isExactInput: true,
