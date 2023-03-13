@@ -504,15 +504,10 @@ library GenericLogic {
                             baseToken
                         )
                     );
-                int256 freeCollateral = IVault(IClearingHouse(clearingHouse).getVault())
-                    .getFreeCollateralByToken(
-                        IClearingHouse(clearingHouse).getInsuranceFund(),
-                        IInsuranceFund(IClearingHouse(clearingHouse).getInsuranceFund()).getToken(),
-                        baseToken
-                    )
-                    .toInt256();
+                int256 insuranceFundCapacity = IInsuranceFund(IClearingHouse(clearingHouse).getInsuranceFund())
+                    .getInsuranceFundCapacity(baseToken);
                 if (remainDistributedFund >= vars.costDeltaQuote) {
-                    if (freeCollateral >= vars.costDeltaQuote) {
+                    if (insuranceFundCapacity >= vars.costDeltaQuote) {
                         vars.isEnoughFund = true;
                     }
                 }
@@ -522,7 +517,7 @@ library GenericLogic {
                         vars.costDeltaQuote,
                         PerpMath.min(
                             remainDistributedFund > 0 ? remainDistributedFund : 0,
-                            freeCollateral > 0 ? freeCollateral : 0
+                            insuranceFundCapacity > 0 ? insuranceFundCapacity : 0
                         )
                     );
                 }
@@ -573,15 +568,10 @@ library GenericLogic {
                 vars.costDeltaQuote.neg256()
             );
             // check RealizedPnl for InsuranceFund after repeg
-            int256 freeCollateral = IVault(IClearingHouse(clearingHouse).getVault())
-                .getFreeCollateralByToken(
-                    IClearingHouse(clearingHouse).getInsuranceFund(),
-                    IInsuranceFund(IClearingHouse(clearingHouse).getInsuranceFund()).getToken(),
-                    baseToken
-                )
-                .toInt256();
+            int256 insuranceFundCapacity = IInsuranceFund(IClearingHouse(clearingHouse).getInsuranceFund())
+                .getInsuranceFundCapacity(baseToken);
             // GL_INE: InsuranceFund not fee fund
-            require(freeCollateral >= 0, "GL_INFF");
+            require(insuranceFundCapacity >= 0, "GL_INFF");
             // emit event
             emit MultiplierCostSpend(baseToken, vars.costDeltaQuote);
         }
@@ -724,6 +714,56 @@ library GenericLogic {
         );
 
         return DataTypes.RemoveLiquidityResponse({ quote: response.quote, base: response.base });
+    }
+
+    function modifyOwedRealizedPnlForPlatformFee(address clearingHouse, address baseToken, uint256 amount) external {
+        address platformFund = IClearingHouse(clearingHouse).getPlatformFund();
+        if (isIsolated(clearingHouse, baseToken)) {
+            address insuranceFund = IClearingHouse(clearingHouse).getInsuranceFund();
+            uint24 shareFeeRatio = IMarketRegistry(IClearingHouse(clearingHouse).getMarketRegistry())
+                .getSharePlatformFeeRatioGlobal();
+            // for creator
+            int256 insurancePlatformFee = amount.toInt256().mulRatio(shareFeeRatio);
+            IAccountBalance(IClearingHouse(clearingHouse).getAccountBalance()).modifyOwedRealizedPnlForCreatorFee(
+                insuranceFund,
+                baseToken,
+                insurancePlatformFee
+            );
+            IInsuranceFund(insuranceFund).modifyPlatformFee(baseToken, insurancePlatformFee);
+            // for platform
+            int256 platformFundFee = amount.toInt256().sub(insurancePlatformFee);
+            IAccountBalance(IClearingHouse(clearingHouse).getAccountBalance()).modifyOwedRealizedPnlForPlatformFee(
+                platformFund,
+                baseToken,
+                platformFundFee
+            );
+            // revert("TODO");
+        } else {
+            IAccountBalance(IClearingHouse(clearingHouse).getAccountBalance()).modifyOwedRealizedPnlForPlatformFee(
+                platformFund,
+                baseToken,
+                amount.toInt256()
+            );
+        }
+    }
+
+    function modifyOwedRealizedPnlForInsuranceFundFee(
+        address clearingHouse,
+        address baseToken,
+        uint256 amount
+    ) external {
+        address insuranceFund = IClearingHouse(clearingHouse).getInsuranceFund();
+        // update repeg fund
+        if (isIsolated(clearingHouse, baseToken)) {
+            IInsuranceFund(insuranceFund).addContributionFund(baseToken, insuranceFund, amount);
+        } else {
+            IInsuranceFund(insuranceFund).addRepegFund(amount.div(2), baseToken);
+        }
+        IAccountBalance(IClearingHouse(clearingHouse).getAccountBalance()).modifyOwedRealizedPnl(
+            insuranceFund,
+            baseToken,
+            amount.toInt256()
+        );
     }
 
     function isIsolated(address clearingHouse, address baseToken) public view returns (bool) {

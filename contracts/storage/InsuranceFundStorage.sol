@@ -36,3 +36,23 @@ abstract contract InsuranceFundStorageV3 is InsuranceFundStorageV2 {
     mapping(address => int256) internal _accumulatedRepegFundMap;
     mapping(address => int256) internal _distributedRepegFundMap;
 }
+
+abstract contract InsuranceFundStorageV4 is InsuranceFundStorageV3 {
+    struct PlatformFundData {
+        uint256 total; // X10_18
+        uint256 lastTotal; // X10_18
+        uint256 lastShared; // X10_18
+        uint256 creatorPendingFee; // X10_18
+        // contributor -> lastShared
+        mapping(address => uint256) lastSharedMap; // X10_18
+    }
+
+    struct ContributionFundData {
+        uint256 total; // X10_18
+        // contributor -> amount
+        mapping(address => uint256) contributors; // X10_18
+    }
+    //
+    mapping(address => PlatformFundData) internal _platformFundDataMap;
+    mapping(address => ContributionFundData) internal _contributionFundDataMap;
+}
