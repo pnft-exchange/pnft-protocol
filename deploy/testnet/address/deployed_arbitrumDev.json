@@ -99,15 +99,15 @@
     },
     "insuranceFund": {
         "address": "0xa857Ea6eDC0D3c61C176DCdc4d6c8A25c8c52eB6",
-        "implAddress": "0x503B88f5B0A79336148365648AF9E4ef5B072274"
+        "implAddress": "0x1AC299126341A2cdfc0dfa79956C125276e46239"
     },
     "vault": {
         "address": "0x5e1D5E73DaAf3FD5C61Af6745c7CD47Fd4237669",
-        "implAddress": "0x0270f2aeC2542f3bEa8557F863d5CC442A7839B1"
+        "implAddress": "0x5369Ccd0b12e21dc44E892eb4F3C1c3dFC4C7734"
     },
     "clearingHouse": {
         "address": "0xe0b9f964a1eb94B18591040d7ED3CfBc6cc7A92a",
-        "implAddress": "0x1E06272E75e63CB350b152055D9d911Fa515144e"
+        "implAddress": "0x864e58EC5A6d87793303Bec30860F7C1b18f0a3e"
     },
     "testFaucet": {
         "address": "",
