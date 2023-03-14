@@ -103,7 +103,7 @@
     },
     "vault": {
         "address": "0x5e1D5E73DaAf3FD5C61Af6745c7CD47Fd4237669",
-        "implAddress": "0x5369Ccd0b12e21dc44E892eb4F3C1c3dFC4C7734"
+        "implAddress": "0x6806a70e23E03F2c0658b289fCaC64325b3dBEe3"
     },
     "clearingHouse": {
         "address": "0xe0b9f964a1eb94B18591040d7ED3CfBc6cc7A92a",
