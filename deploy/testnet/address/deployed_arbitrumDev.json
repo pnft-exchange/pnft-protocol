@@ -99,7 +99,7 @@
     },
     "insuranceFund": {
         "address": "0xa857Ea6eDC0D3c61C176DCdc4d6c8A25c8c52eB6",
-        "implAddress": "0x1AC299126341A2cdfc0dfa79956C125276e46239"
+        "implAddress": "0x03475dE0d044932e6c1987a2b54FF69cE27393cd"
     },
     "vault": {
         "address": "0x5e1D5E73DaAf3FD5C61Af6745c7CD47Fd4237669",
