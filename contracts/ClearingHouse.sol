@@ -272,20 +272,14 @@ contract ClearingHouse is
         checkDeadline(params.deadline)
         returns (uint256 base, uint256 quote)
     {
-        int256 positionSizeBefore = IAccountBalance(_accountBalance).getTotalPositionSize(
-            _msgSender(),
-            params.baseToken
-        );
+        int256 positionSize = IAccountBalance(_accountBalance).getTotalPositionSize(_msgSender(), params.baseToken);
         // openPosition() is already published, returned types remain the same (without fee)
         (base, quote, ) = _openPositionFor(_msgSender(), params);
-        int256 positionSizeAfter = IAccountBalance(_accountBalance).getTotalPositionSize(
-            _msgSender(),
-            params.baseToken
-        );
+        // for isolated market
         if (_isIsolated(params.baseToken)) {
             // CH_OPNDPS: open position not decrease position size
             require(
-                positionSizeBefore.mul(positionSizeAfter) >= 0 && positionSizeBefore.abs() >= positionSizeAfter.abs(),
+                positionSize.mul(params.isBaseToQuote ? int256(1) : int256(-1)) > 0 && positionSize.abs() >= base,
                 "CH_OPNDPS"
             );
         }
@@ -630,8 +624,8 @@ contract ClearingHouse is
     ) internal returns (uint256 base, uint256 quote, uint256 fee) {
         (base, quote, fee) = ClearingHouseLogic.openPositionFor(address(this), trader, params);
         if (_isIsolated(params.baseToken)) {
-            int256 positionSize = IAccountBalance(_accountBalance).getTotalPositionSize(_msgSender(), params.baseToken);
-            if (positionSize == 0) {
+            // check position size zero for withdraw all
+            if (IAccountBalance(_accountBalance).getTotalPositionSize(_msgSender(), params.baseToken) == 0) {
                 IVault(_vault).requestWithdrawAllFor(
                     _msgSender(),
                     IVault(_vault).getSettlementToken(),
