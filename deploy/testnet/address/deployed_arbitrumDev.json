@@ -107,7 +107,7 @@
     },
     "clearingHouse": {
         "address": "0xe0b9f964a1eb94B18591040d7ED3CfBc6cc7A92a",
-        "implAddress": "0xA5156Acb082C25A0C9F3f47709A4A230412419C0"
+        "implAddress": "0x2262588AAcf4A5f8A0117B8708BF9f58BB21D367"
     },
     "testFaucet": {
         "address": "",
